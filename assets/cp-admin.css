@@ -1,0 +1,53 @@
+/* Candidate Portal - admin screens */
+.cp-wrap .cp-card {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	padding: 16px 20px;
+	margin: 16px 0 24px;
+	max-width: 720px;
+}
+.cp-wrap input[type="text"],
+.cp-wrap input[type="email"],
+.cp-wrap input[type="password"],
+.cp-wrap select {
+	width: 320px;
+	max-width: 100%;
+}
+.cp-check {
+	display: inline-block;
+	margin: 4px 16px 4px 0;
+}
+.cp-table {
+	max-width: 960px;
+}
+.cp-actions form {
+	display: inline;
+}
+.cp-danger {
+	color: #b32d2e;
+	border-color: #b32d2e;
+}
+.cp-letters {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+	gap: 8px;
+	max-width: 680px;
+	margin: 8px 0;
+}
+.cp-letter {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	padding: 4px 8px;
+}
+.cp-letter span {
+	font-weight: 600;
+	width: 14px;
+}
+.cp-letter input {
+	width: 44px;
+}

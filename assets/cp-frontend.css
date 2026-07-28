@@ -1,0 +1,78 @@
+/* Candidate Portal - public list and candidate portal.
+   Deliberately minimal: colors and fonts inherit the active theme. */
+
+.cp-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	gap: 24px;
+	margin: 16px 0;
+}
+.cp-card-public {
+	border: 1px solid rgba(0, 0, 0, 0.12);
+	border-radius: 8px;
+	padding: 20px;
+}
+.cp-card-public .cp-photo {
+	width: 100%;
+	height: auto;
+	aspect-ratio: 1 / 1;
+	object-fit: cover;
+	border-radius: 6px;
+	display: block;
+}
+.cp-photo-empty {
+	background: rgba(0, 0, 0, 0.06);
+}
+.cp-name {
+	margin: 12px 0 6px;
+}
+.cp-bio {
+	font-size: 0.95em;
+}
+.cp-links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin-top: 10px;
+	font-size: 0.9em;
+}
+.cp-election-title {
+	margin-top: 32px;
+}
+
+/* Portal form */
+.cp-portal {
+	max-width: 560px;
+}
+.cp-portal .cp-field input[type="text"],
+.cp-portal .cp-field input[type="url"],
+.cp-portal .cp-field textarea {
+	width: 100%;
+	box-sizing: border-box;
+}
+.cp-portal .cp-photo {
+	max-width: 160px;
+	height: auto;
+	display: block;
+	margin-bottom: 8px;
+	border-radius: 6px;
+}
+.cp-hint {
+	font-size: 0.85em;
+	opacity: 0.75;
+}
+.cp-saved {
+	border: 1px solid #2f855a;
+	background: rgba(47, 133, 90, 0.08);
+	border-radius: 6px;
+	padding: 10px 14px;
+	margin-bottom: 16px;
+}
+.cp-save {
+	cursor: pointer;
+	padding: 10px 22px;
+}
+.cp-logout {
+	margin-left: 16px;
+	font-size: 0.9em;
+}
