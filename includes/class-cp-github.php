@@ -145,6 +145,7 @@ class CP_GitHub {
 			$elections[] = array(
 				'slug'     => $e->post_name,
 				'name'     => $e->post_title,
+				'date'     => get_post_meta( $e->ID, '_cp_election_date', true ),
 				'alphabet' => get_post_meta( $e->ID, '_cp_alphabet_id', true ),
 			);
 		}

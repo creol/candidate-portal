@@ -30,9 +30,9 @@
 }
 .cp-letters {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
 	gap: 8px;
-	max-width: 680px;
+	max-width: 720px;
 	margin: 8px 0;
 }
 .cp-letter {
@@ -48,6 +48,9 @@
 	font-weight: 600;
 	width: 14px;
 }
-.cp-letter input {
-	width: 44px;
+.cp-wrap .cp-letter input[type="number"] {
+	width: 62px;
+	min-width: 62px;
+	padding: 2px 4px;
+	text-align: center;
 }

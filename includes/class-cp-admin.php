@@ -82,6 +82,7 @@ class CP_Admin {
 					$id = wp_insert_post( $args );
 				}
 				update_post_meta( $id, '_cp_alphabet_id', sanitize_key( $_POST['alphabet_id'] ) );
+				update_post_meta( $id, '_cp_election_date', sanitize_text_field( $_POST['election_date'] ) );
 				do_action( 'cp_data_changed' );
 				$notice = 'Election saved.';
 				$back   = 'cp-elections';
@@ -358,6 +359,7 @@ class CP_Admin {
 		echo '<div class="cp-card"><h2>' . esc_html( $editing ? 'Edit election' : 'New election' ) . '</h2>';
 		self::form_open( 'save_election', $editing ? '<input type="hidden" name="election_id" value="' . (int) $editing->ID . '" />' : '' );
 		echo '<p><label>Election name<br/><input type="text" name="election_name" required value="' . esc_attr( $editing ? $editing->post_title : '' ) . '" placeholder="e.g. Vice Chair Special Election 2026" /></label></p>';
+		echo '<p><label>Election date<br/><input type="date" name="election_date" value="' . esc_attr( $editing ? get_post_meta( $editing->ID, '_cp_election_date', true ) : '' ) . '" /></label></p>';
 		$current_alpha = $editing ? get_post_meta( $editing->ID, '_cp_alphabet_id', true ) : '';
 		echo '<p><label>Alphabet used for candidate order<br/><select name="alphabet_id">';
 		foreach ( $alphabets as $a ) {
@@ -375,10 +377,12 @@ class CP_Admin {
 			return;
 		}
 		echo '<p class="description">To show an election on any WordPress page, paste its shortcode into that page. To show several elections together on one page, combine them: <code>[candidate_list elections="slug-one,slug-two"]</code></p>';
-		echo '<table class="widefat striped cp-table"><thead><tr><th>Election</th><th>Alphabet</th><th>Shortcode (copy this into a page)</th><th>Actions</th></tr></thead><tbody>';
+		echo '<table class="widefat striped cp-table"><thead><tr><th>Election</th><th>Date</th><th>Alphabet</th><th>Shortcode (copy this into a page)</th><th>Actions</th></tr></thead><tbody>';
 		foreach ( $elections as $e ) {
 			$a = CP_Alphabets::get( get_post_meta( $e->ID, '_cp_alphabet_id', true ) );
+			$date = get_post_meta( $e->ID, '_cp_election_date', true );
 			echo '<tr><td>' . esc_html( $e->post_title ) . '</td>';
+			echo '<td>' . esc_html( $date ? date_i18n( get_option( 'date_format' ), strtotime( $date ) ) : '—' ) . '</td>';
 			echo '<td>' . esc_html( $a ? $a['name'] : 'Standard A-Z' ) . '</td>';
 			echo '<td><code>[candidate_list elections="' . esc_html( $e->post_name ) . '"]</code></td>';
 			echo '<td class="cp-actions"><a class="button button-small" href="' . esc_url( admin_url( 'admin.php?page=cp-elections&edit=' . $e->ID ) ) . '">Edit</a> ';
