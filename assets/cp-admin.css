@@ -54,3 +54,40 @@
 	padding: 2px 4px;
 	text-align: center;
 }
+
+/* v1.1.0 additions */
+.cp-wrap .cp-quick {
+	width: 100%;
+	max-width: 680px;
+	font-family: monospace;
+	letter-spacing: 1px;
+}
+.cp-letter input.cp-filled {
+	background: #edf7f0;
+	border-color: #2f855a;
+}
+.cp-times label {
+	display: inline-block;
+	margin-right: 16px;
+}
+.cp-wrap input[type="date"],
+.cp-wrap input[type="time"] {
+	width: auto;
+}
+.cp-wrap input[type="url"],
+.cp-wrap textarea {
+	width: 100%;
+	max-width: 560px;
+}
+.cp-thumbs img {
+	border-radius: 4px;
+	margin-right: 6px;
+	vertical-align: middle;
+}
+.cp-readonly {
+	background: #f6f7f7;
+	border-left: 4px solid #dcdcde;
+	padding: 10px 14px;
+	margin: 12px 0;
+	line-height: 1.8;
+}

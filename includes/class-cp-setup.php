@@ -54,6 +54,15 @@ class CP_Setup {
 			'hierarchical' => false,
 		) );
 
+		// Events: gatherings that hold one or more elections.
+		register_post_type( 'cp_event', array(
+			'labels'       => array( 'name' => __( 'Election Events', 'candidate-portal' ), 'singular_name' => __( 'Election Event', 'candidate-portal' ) ),
+			'public'       => false,
+			'show_ui'      => false,
+			'supports'     => array( 'title', 'thumbnail' ),
+			'hierarchical' => false,
+		) );
+
 		// Candidates. One post per person, reusable across elections.
 		register_post_type( 'cp_candidate', array(
 			'labels'       => array( 'name' => __( 'Candidates', 'candidate-portal' ), 'singular_name' => __( 'Candidate', 'candidate-portal' ) ),

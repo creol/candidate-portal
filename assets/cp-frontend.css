@@ -76,3 +76,104 @@
 	margin-left: 16px;
 	font-size: 0.9em;
 }
+
+/* v1.1.0: contact, disclosure exceptions, event page */
+.cp-contact {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin-top: 10px;
+	font-size: 0.9em;
+}
+.cp-exceptions {
+	margin-top: 10px;
+	font-size: 0.9em;
+}
+.cp-exceptions summary {
+	cursor: pointer;
+	text-decoration: underline;
+}
+.cp-exceptions-body {
+	padding: 8px 12px;
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+	margin-top: 6px;
+}
+.cp-portal .cp-inline {
+	font-size: 0.9em;
+}
+.cp-disclosure {
+	border: 1px solid rgba(0, 0, 0, 0.15);
+	border-radius: 8px;
+	padding: 14px 18px;
+	margin: 18px 0;
+}
+.cp-disclosure h4 {
+	margin-top: 0;
+}
+
+/* Event page - responsive without depending on the theme */
+.cp-event-banner img {
+	width: 100%;
+	height: auto;
+	max-height: 420px;
+	object-fit: cover;
+	border-radius: 10px;
+	display: block;
+}
+.cp-event-title {
+	margin: 18px 0 10px;
+}
+.cp-event-facts {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: 12px;
+	margin: 14px 0 20px;
+}
+.cp-fact {
+	border: 1px solid rgba(0, 0, 0, 0.12);
+	border-radius: 8px;
+	padding: 10px 14px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.cp-fact-wide {
+	grid-column: 1 / -1;
+}
+.cp-fact-label {
+	font-size: 0.75em;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	opacity: 0.65;
+}
+.cp-map-link {
+	white-space: nowrap;
+}
+.cp-agenda {
+	padding-left: 1.2em;
+}
+.cp-agenda li {
+	margin: 4px 0;
+}
+.cp-event-gallery {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 10px;
+	margin: 16px 0;
+}
+.cp-event-gallery img {
+	width: 100%;
+	height: auto;
+	border-radius: 8px;
+}
+.cp-election-date {
+	font-size: 0.7em;
+	font-weight: normal;
+	opacity: 0.7;
+	margin-left: 8px;
+}
+@media (max-width: 480px) {
+	.cp-event-facts {
+		grid-template-columns: 1fr 1fr;
+	}
+}

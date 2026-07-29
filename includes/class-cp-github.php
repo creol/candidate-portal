@@ -115,18 +115,25 @@ class CP_GitHub {
 		}
 
 		$data = array(
-			'id'         => $post_id,
-			'first_name' => get_post_meta( $post_id, '_cp_first_name', true ),
-			'last_name'  => get_post_meta( $post_id, '_cp_last_name', true ),
-			'bio'        => $post->post_content,
-			'website'    => get_post_meta( $post_id, '_cp_website', true ),
-			'facebook'   => get_post_meta( $post_id, '_cp_facebook', true ),
-			'twitter'    => get_post_meta( $post_id, '_cp_twitter', true ),
-			'instagram'  => get_post_meta( $post_id, '_cp_instagram', true ),
-			'elections'  => $election_slugs,
-			'photo'      => $photo_repo_path,
-			'updated'    => current_time( 'mysql' ),
-			'updated_by' => wp_get_current_user()->user_login,
+			'id'              => $post_id,
+			'first_name'      => get_post_meta( $post_id, '_cp_first_name', true ),
+			'last_name'       => get_post_meta( $post_id, '_cp_last_name', true ),
+			'bio'             => $post->post_content,
+			'email'           => get_post_meta( $post_id, '_cp_email', true ),
+			'phone'           => get_post_meta( $post_id, '_cp_phone', true ),
+			'email_public'    => get_post_meta( $post_id, '_cp_show_email', true ),
+			'phone_public'    => get_post_meta( $post_id, '_cp_show_phone', true ),
+			'website'         => get_post_meta( $post_id, '_cp_website', true ),
+			'facebook'        => get_post_meta( $post_id, '_cp_facebook', true ),
+			'twitter'         => get_post_meta( $post_id, '_cp_twitter', true ),
+			'instagram'       => get_post_meta( $post_id, '_cp_instagram', true ),
+			'disclosure_date' => get_post_meta( $post_id, '_cp_disclosure_date', true ),
+			'exceptions'      => get_post_meta( $post_id, '_cp_exceptions', true ),
+			// State Voter ID is intentionally NOT synced to GitHub.
+			'elections'       => $election_slugs,
+			'photo'           => $photo_repo_path,
+			'updated'         => current_time( 'mysql' ),
+			'updated_by'      => wp_get_current_user()->user_login,
 		);
 
 		$path = 'candidates/' . $post_id . '-' . sanitize_title( $post->post_title ) . '.json';
@@ -146,11 +153,29 @@ class CP_GitHub {
 				'slug'     => $e->post_name,
 				'name'     => $e->post_title,
 				'date'     => get_post_meta( $e->ID, '_cp_election_date', true ),
+				'event'    => ( $evp = get_post( (int) get_post_meta( $e->ID, '_cp_event_id', true ) ) ) ? $evp->post_name : '',
 				'alphabet' => get_post_meta( $e->ID, '_cp_alphabet_id', true ),
 			);
 		}
 		self::put_file( 'data/elections.json', wp_json_encode( $elections, JSON_PRETTY_PRINT ), 'Update elections' );
 		self::put_file( 'data/alphabets.json', wp_json_encode( array_values( CP_Alphabets::all() ), JSON_PRETTY_PRINT ), 'Update alphabets' );
+
+		$events = array();
+		foreach ( get_posts( array( 'post_type' => 'cp_event', 'posts_per_page' => -1, 'post_status' => 'publish' ) ) as $ev ) {
+			$events[] = array(
+				'slug'          => $ev->post_name,
+				'name'          => $ev->post_title,
+				'date'          => get_post_meta( $ev->ID, '_cp_event_date', true ),
+				'start_time'    => get_post_meta( $ev->ID, '_cp_event_start_time', true ),
+				'call_to_order' => get_post_meta( $ev->ID, '_cp_event_call_to_order', true ),
+				'end_time'      => get_post_meta( $ev->ID, '_cp_event_end_time', true ),
+				'venue'         => get_post_meta( $ev->ID, '_cp_event_venue', true ),
+				'maps_url'      => get_post_meta( $ev->ID, '_cp_event_maps_url', true ),
+				'agenda'        => get_post_meta( $ev->ID, '_cp_event_agenda', true ),
+				'description'   => get_post_meta( $ev->ID, '_cp_event_description', true ),
+			);
+		}
+		self::put_file( 'data/events.json', wp_json_encode( $events, JSON_PRETTY_PRINT ), 'Update events' );
 	}
 
 	/** Full push of everything - used by the settings-page button. */
