@@ -16,6 +16,37 @@ class CP_Setup {
 		add_action( 'admin_init', array( __CLASS__, 'block_dashboard_for_candidates' ) );
 		add_filter( 'show_admin_bar', array( __CLASS__, 'hide_admin_bar_for_candidates' ) );
 		add_filter( 'login_redirect', array( __CLASS__, 'candidate_login_redirect' ), 10, 3 );
+		// Whenever plugin data changes, clear popular page caches so
+		// logged-out visitors see the update immediately.
+		add_action( 'cp_candidate_saved', array( __CLASS__, 'purge_caches' ), 99 );
+		add_action( 'cp_data_changed', array( __CLASS__, 'purge_caches' ), 99 );
+	}
+
+	/**
+	 * Best-effort purge of well-known caching plugins. Whichever ones are
+	 * not installed are simply skipped.
+	 */
+	public static function purge_caches() {
+		if ( function_exists( 'wp_cache_clear_cache' ) ) { // WP Super Cache
+			wp_cache_clear_cache();
+		}
+		if ( function_exists( 'w3tc_flush_all' ) ) { // W3 Total Cache
+			w3tc_flush_all();
+		}
+		if ( function_exists( 'rocket_clean_domain' ) ) { // WP Rocket
+			rocket_clean_domain();
+		}
+		if ( function_exists( 'sg_cachepress_purge_cache' ) ) { // SiteGround
+			sg_cachepress_purge_cache();
+		}
+		if ( function_exists( 'autoptimize_flushPageCache' ) ) { // Autoptimize
+			autoptimize_flushPageCache();
+		}
+		do_action( 'litespeed_purge_all' );   // LiteSpeed Cache
+		do_action( 'cache_enabler_clear_complete_cache' ); // Cache Enabler
+		if ( class_exists( 'WpFastestCache' ) && isset( $GLOBALS['wp_fastest_cache'] ) && method_exists( $GLOBALS['wp_fastest_cache'], 'deleteCache' ) ) {
+			$GLOBALS['wp_fastest_cache']->deleteCache( true ); // WP Fastest Cache
+		}
 	}
 
 	public static function activate() {

@@ -517,7 +517,7 @@ class CP_Admin {
 
 			echo '<p><label>Email<br/><input type="email" name="cp_email" value="' . esc_attr( $m( '_cp_email' ) ) . '" /></label> ';
 			echo '<label class="cp-check"><input type="checkbox" name="show_email" value="1" ' . checked( $m( '_cp_show_email' ), '1', false ) . ' /> shown publicly</label></p>';
-			echo '<p><label>Phone<br/><input type="text" name="cp_phone" value="' . esc_attr( $m( '_cp_phone' ) ) . '" /></label> ';
+			echo '<p><label>Phone<br/><input type="text" name="cp_phone" placeholder="(801)555-1234" value="' . esc_attr( CP_Frontend::format_phone( $m( '_cp_phone' ) ) ) . '" /></label> ';
 			echo '<label class="cp-check"><input type="checkbox" name="show_phone" value="1" ' . checked( $m( '_cp_show_phone' ), '1', false ) . ' /> shown publicly</label></p>';
 
 			echo '<p><label>State Voter ID (never public)<br/><input type="text" name="voter_id" value="' . esc_attr( $m( '_cp_voter_id' ) ) . '" /></label></p>';

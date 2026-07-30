@@ -12,6 +12,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 class CP_Frontend {
 
 	const DISCLOSURE_TEXT = 'I have read the SLCoGOP Platform and Bylaws. I support them except for any provisions I outline below, and accept it as the standard by which my performance as a candidate and as an officeholder should be evaluated.';
+	const PLATFORM_URL    = 'https://slcogop.com/party-platform/';
+	const BYLAWS_URL      = 'https://slcogop.com/governing-docs/';
+
+	/** Format a phone number as (###)###-#### when it has 10 digits. */
+	public static function format_phone( $raw ) {
+		$digits = preg_replace( '/[^0-9]/', '', (string) $raw );
+		if ( 11 === strlen( $digits ) && '1' === $digits[0] ) {
+			$digits = substr( $digits, 1 );
+		}
+		if ( 10 === strlen( $digits ) ) {
+			return '(' . substr( $digits, 0, 3 ) . ')' . substr( $digits, 3, 3 ) . '-' . substr( $digits, 6 );
+		}
+		return $raw; // unusual formats are shown as typed
+	}
 
 	public static function init() {
 		add_shortcode( 'candidate_list', array( __CLASS__, 'shortcode_list' ) );
@@ -101,7 +115,7 @@ class CP_Frontend {
 			$contact .= '<a href="mailto:' . esc_attr( $email ) . '">' . esc_html( $email ) . '</a>';
 		}
 		if ( get_post_meta( $c->ID, '_cp_show_phone', true ) && ( $phone = get_post_meta( $c->ID, '_cp_phone', true ) ) ) {
-			$contact .= '<a href="tel:' . esc_attr( preg_replace( '/[^0-9+]/', '', $phone ) ) . '">' . esc_html( $phone ) . '</a>';
+			$contact .= '<a href="tel:' . esc_attr( preg_replace( '/[^0-9+]/', '', $phone ) ) . '">' . esc_html( self::format_phone( $phone ) ) . '</a>';
 		}
 
 		// Platform exceptions - collapsed behind a click.
@@ -281,7 +295,7 @@ class CP_Frontend {
 					<label class="cp-inline"><input type="checkbox" name="show_email" value="1" <?php checked( $show_email, '1' ); ?> /> <?php esc_html_e( 'Show my email publicly', 'candidate-portal' ); ?></label></p>
 
 				<p class="cp-field"><label><?php esc_html_e( 'Phone', 'candidate-portal' ); ?><br/>
-					<input type="tel" name="cp_phone" value="<?php echo esc_attr( $meta( '_cp_phone' ) ); ?>" /></label><br/>
+					<input type="tel" name="cp_phone" placeholder="(801)555-1234" value="<?php echo esc_attr( self::format_phone( $meta( '_cp_phone' ) ) ); ?>" /></label><br/>
 					<label class="cp-inline"><input type="checkbox" name="show_phone" value="1" <?php checked( $show_phone, '1' ); ?> /> <?php esc_html_e( 'Show my phone publicly', 'candidate-portal' ); ?></label></p>
 
 				<p class="cp-field"><label><?php esc_html_e( 'State Voter ID (required - never shown publicly)', 'candidate-portal' ); ?><br/>
@@ -301,7 +315,12 @@ class CP_Frontend {
 
 				<div class="cp-disclosure">
 					<h4><?php esc_html_e( 'Candidate Disclosure Statement', 'candidate-portal' ); ?></h4>
-					<p><?php echo esc_html( self::DISCLOSURE_TEXT ); ?></p>
+					<p><?php
+					$disclosure = esc_html( self::DISCLOSURE_TEXT );
+					$disclosure = str_replace( 'Platform', '<a href="' . esc_url( self::PLATFORM_URL ) . '" target="_blank" rel="noopener">Platform</a>', $disclosure );
+					$disclosure = str_replace( 'Bylaws', '<a href="' . esc_url( self::BYLAWS_URL ) . '" target="_blank" rel="noopener">Bylaws</a>', $disclosure );
+					echo $disclosure; // phpcs:ignore -- built from escaped parts
+					?></p>
 					<p><label class="cp-inline"><input type="checkbox" name="disclosure" value="1" required <?php checked( (bool) $disc_date ); ?> /> <?php esc_html_e( 'I agree (required)', 'candidate-portal' ); ?></label>
 					<?php if ( $disc_date ) : ?>
 						<span class="cp-hint"><?php echo esc_html( sprintf( __( 'Accepted on %s', 'candidate-portal' ), date_i18n( get_option( 'date_format' ), strtotime( $disc_date ) ) ) ); ?></span>
