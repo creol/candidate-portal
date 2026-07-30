@@ -23,6 +23,10 @@ class CP_Frontend {
 
 	public static function assets() {
 		wp_register_style( 'cp-frontend', CP_PLUGIN_URL . 'assets/cp-frontend.css', array(), CP_VERSION );
+		wp_register_style( 'cp-cropper', CP_PLUGIN_URL . 'assets/cropper.min.css', array(), '1.6.2' );
+		wp_register_style( 'cp-crop-ui', CP_PLUGIN_URL . 'assets/cp-crop.css', array(), CP_VERSION );
+		wp_register_script( 'cp-cropper', CP_PLUGIN_URL . 'assets/cropper.min.js', array(), '1.6.2', true );
+		wp_register_script( 'cp-crop', CP_PLUGIN_URL . 'assets/cp-crop.js', array( 'cp-cropper' ), CP_VERSION, true );
 	}
 
 	/* ------------------------------------------------------------------ */
@@ -141,7 +145,8 @@ class CP_Frontend {
 			return $t ? date_i18n( get_option( 'time_format' ), strtotime( $t ) ) : '';
 		};
 
-		$out = '<div class="cp-event">';
+		$wide = '1' === get_post_meta( $event->ID, '_cp_event_wide', true );
+		$out  = '<div class="cp-event' . ( $wide ? ' cp-event-wide' : '' ) . '">';
 
 		$out .= '<h1 class="cp-event-title cp-event-title-top">' . esc_html( $event->post_title ) . '</h1>';
 
@@ -199,9 +204,10 @@ class CP_Frontend {
 		// and its own alphabet ordering.
 		$elections = get_posts( array( 'post_type' => 'cp_election', 'posts_per_page' => -1, 'post_status' => 'publish', 'meta_key' => '_cp_event_id', 'meta_value' => $event->ID, 'orderby' => 'title', 'order' => 'ASC' ) );
 		if ( $elections ) {
+			$out .= '<hr class="cp-event-divider" />';
 			$out .= '<h2 class="cp-event-elections-heading">' . esc_html__( 'Meet the Candidates', 'candidate-portal' ) . '</h2>';
 			foreach ( $elections as $election ) {
-				$out .= self::render_election( $election, true );
+				$out .= '<div class="cp-election-block">' . self::render_election( $election, true ) . '</div>';
 			}
 		}
 
@@ -214,6 +220,10 @@ class CP_Frontend {
 
 	public static function shortcode_portal() {
 		wp_enqueue_style( 'cp-frontend' );
+		wp_enqueue_style( 'cp-cropper' );
+		wp_enqueue_style( 'cp-crop-ui' );
+		wp_enqueue_script( 'cp-cropper' );
+		wp_enqueue_script( 'cp-crop' );
 
 		if ( ! is_user_logged_in() ) {
 			return '<div class="cp-portal"><h3>' . esc_html__( 'Candidate sign in', 'candidate-portal' ) . '</h3>'
@@ -260,8 +270,8 @@ class CP_Frontend {
 
 				<p class="cp-field"><label><?php esc_html_e( 'Profile photo', 'candidate-portal' ); ?><br/>
 					<?php echo $photo ? $photo : ''; // phpcs:ignore ?>
-					<input type="file" name="cp_photo" accept="image/jpeg,image/png,image/webp" /></label>
-					<span class="cp-hint"><?php esc_html_e( 'JPG or PNG. Uploading a new photo replaces the old one.', 'candidate-portal' ); ?></span></p>
+					<input type="file" name="cp_photo" accept="image/jpeg,image/png,image/webp" data-cp-crop="square" /></label>
+					<span class="cp-hint"><?php esc_html_e( 'JPG or PNG. After choosing a photo you can zoom, recenter, and crop it. Uploading a new photo replaces the old one.', 'candidate-portal' ); ?></span></p>
 
 				<p class="cp-field"><label><?php esc_html_e( 'About you (shown to voters)', 'candidate-portal' ); ?><br/>
 					<textarea name="bio" rows="8"><?php echo esc_textarea( $post->post_content ); ?></textarea></label></p>

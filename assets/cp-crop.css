@@ -1,0 +1,58 @@
+/* Candidate Portal - crop modal */
+.cp-crop-overlay {
+	display: none;
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.75);
+	z-index: 999999;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+}
+.cp-crop-modal {
+	background: #fff;
+	border-radius: 12px;
+	max-width: 640px;
+	width: 100%;
+	padding: 18px 20px;
+	box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+.cp-crop-title {
+	margin: 0 0 12px;
+	font-size: 0.95em;
+	color: #1d2327;
+}
+.cp-crop-stage {
+	max-height: 60vh;
+	overflow: hidden;
+	background: #111;
+	border-radius: 8px;
+}
+.cp-crop-stage img {
+	display: block;
+	max-width: 100%;
+}
+.cp-crop-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-top: 14px;
+}
+.cp-crop-actions button {
+	cursor: pointer;
+	border-radius: 6px;
+	padding: 8px 16px;
+	border: 1px solid #c3c4c7;
+	background: #f6f7f7;
+	font-size: 14px;
+}
+.cp-crop-actions .cp-crop-use {
+	background: #2271b1;
+	border-color: #2271b1;
+	color: #fff;
+	font-weight: 600;
+}
+.cp-crop-actions .cp-crop-cancel {
+	margin-left: auto;
+	color: #b32d2e;
+}

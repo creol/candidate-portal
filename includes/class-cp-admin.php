@@ -18,6 +18,10 @@ class CP_Admin {
 		if ( false !== strpos( $hook, 'cp-' ) || false !== strpos( $hook, 'candidate-portal' ) ) {
 			wp_enqueue_style( 'cp-admin', CP_PLUGIN_URL . 'assets/cp-admin.css', array(), CP_VERSION );
 			wp_enqueue_script( 'cp-admin', CP_PLUGIN_URL . 'assets/cp-admin.js', array(), CP_VERSION, true );
+			wp_enqueue_style( 'cp-cropper', CP_PLUGIN_URL . 'assets/cropper.min.css', array(), '1.6.2' );
+			wp_enqueue_style( 'cp-crop-ui', CP_PLUGIN_URL . 'assets/cp-crop.css', array(), CP_VERSION );
+			wp_enqueue_script( 'cp-cropper', CP_PLUGIN_URL . 'assets/cropper.min.js', array(), '1.6.2', true );
+			wp_enqueue_script( 'cp-crop', CP_PLUGIN_URL . 'assets/cp-crop.js', array( 'cp-cropper' ), CP_VERSION, true );
 		}
 	}
 
@@ -319,12 +323,17 @@ class CP_Admin {
 			return 'The event needs a name.';
 		}
 		$args = array( 'post_type' => 'cp_event', 'post_title' => $title, 'post_status' => 'publish' );
+		$requested_slug = isset( $_POST['event_slug'] ) ? sanitize_title( wp_unslash( $_POST['event_slug'] ) ) : '';
+		if ( $requested_slug ) {
+			$args['post_name'] = $requested_slug;
+		}
 		if ( $id ) {
 			$args['ID'] = $id;
 			$id = wp_update_post( $args );
 		} else {
 			$id = wp_insert_post( $args );
 		}
+		update_post_meta( $id, '_cp_event_wide', empty( $_POST['event_wide'] ) ? '0' : '1' );
 
 		$fields = array( 'date', 'start_time', 'call_to_order', 'end_time', 'venue', 'maps_url', 'agenda', 'description' );
 		foreach ( $fields as $f ) {
@@ -373,10 +382,11 @@ class CP_Admin {
 			delete_post_thumbnail( $id );
 		}
 
-		// Auto-create the public page containing the event shortcode.
+		// Auto-create the public page containing the event shortcode, and
+		// keep its shortcode in sync if the slug ever changes.
+		$event   = get_post( $id );
 		$page_id = (int) get_post_meta( $id, '_cp_event_page_id', true );
 		if ( ! $page_id || ! get_post( $page_id ) ) {
-			$event   = get_post( $id );
 			$page_id = wp_insert_post( array(
 				'post_type'    => 'page',
 				'post_title'   => $title,
@@ -384,6 +394,12 @@ class CP_Admin {
 				'post_content' => '[election_event event="' . $event->post_name . '"]',
 			) );
 			update_post_meta( $id, '_cp_event_page_id', $page_id );
+		} else {
+			$page = get_post( $page_id );
+			$new_content = preg_replace( '/\[election_event\s+event="[^"]*"\]/', '[election_event event="' . $event->post_name . '"]', $page->post_content );
+			if ( $new_content !== $page->post_content ) {
+				wp_update_post( array( 'ID' => $page_id, 'post_content' => $new_content ) );
+			}
 		}
 
 		do_action( 'cp_data_changed' );
@@ -473,7 +489,7 @@ class CP_Admin {
 			if ( has_post_thumbnail( $editing->ID ) ) {
 				echo get_the_post_thumbnail( $editing->ID, array( 120, 120 ) ) . '<br/>';
 			}
-			echo '<input type="file" name="cp_photo" accept="image/jpeg,image/png,image/webp" /></label> <span class="description">Uploading replaces the current photo.</span></p>';
+			echo '<input type="file" name="cp_photo" accept="image/jpeg,image/png,image/webp" data-cp-crop="square" /></label> <span class="description">Uploading replaces the current photo. A crop tool opens so you can zoom and recenter.</span></p>';
 
 			echo '<p><label>About (public bio)<br/><textarea name="bio" rows="6">' . esc_textarea( $editing->post_content ) . '</textarea></label></p>';
 
@@ -657,7 +673,9 @@ class CP_Admin {
 
 		echo '<div class="cp-card"><h2>' . esc_html( $editing ? 'Edit event' : 'New event' ) . '</h2>';
 		self::form_open( 'save_event', $editing ? '<input type="hidden" name="event_id" value="' . (int) $editing->ID . '" />' : '', true );
-		echo '<p><label>Event name<br/><input type="text" name="event_name" required value="' . esc_attr( $editing ? $editing->post_title : '' ) . '" placeholder="e.g. 2026 Organizing Convention" /></label></p>';
+		echo '<p><label>Event name<br/><input type="text" name="event_name" id="cp-event-name" required value="' . esc_attr( $editing ? $editing->post_title : '' ) . '" placeholder="e.g. 2026 Organizing Convention" /></label></p>';
+		echo '<p><label>Slug (used in the page shortcode and web address)<br/><input type="text" name="event_slug" id="cp-event-slug" value="' . esc_attr( $editing ? $editing->post_name : '' ) . '" placeholder="auto-generated from the name" pattern="[a-z0-9\-]*" /></label><br/><span class="description">Lowercase letters, numbers, and dashes only. Leave blank to auto-generate.</span></p>';
+		echo '<p><label class="cp-check"><input type="checkbox" name="event_wide" value="1" ' . checked( $m( 'wide' ), '1', false ) . ' /> Wide page layout on desktop</label> <span class="description">The event page stretches nearly full-width on large screens. Mobile is unaffected.</span></p>';
 		echo '<p><label>Date<br/><input type="date" name="event_date" value="' . esc_attr( $m( 'date' ) ) . '" /></label></p>';
 		echo '<p class="cp-times">';
 		echo '<label>Start time<br/><input type="time" name="event_start_time" value="' . esc_attr( $m( 'start_time' ) ) . '" /></label> ';
@@ -679,7 +697,7 @@ class CP_Admin {
 				echo '</p><p><label><input type="checkbox" name="clear_images" value="1" /> Remove all current images on save</label></p>';
 			}
 		}
-		echo '<p><label>Event image(s) - the first becomes the banner<br/><input type="file" name="event_images[]" accept="image/jpeg,image/png,image/webp" multiple /></label></p>';
+		echo '<p><label>Event image(s) - the first becomes the banner<br/><input type="file" name="event_images[]" accept="image/jpeg,image/png,image/webp" data-cp-crop="free" multiple /></label> <span class="description">A crop tool opens for each image so you can zoom, recenter, and crop.</span></p>';
 		submit_button( $editing ? 'Save event' : 'Create event and build its page' );
 		echo '</form></div>';
 

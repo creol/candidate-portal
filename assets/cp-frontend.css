@@ -215,3 +215,31 @@
 	padding: 10px 16px;
 	margin: 16px 0;
 }
+
+/* v1.3.0: divider, election blocks, wide desktop layout */
+.cp-event-divider {
+	border: none;
+	border-top: 2px solid rgba(0, 0, 0, 0.15);
+	margin: 32px 0 20px;
+}
+.cp-election-block {
+	background: #f5f5f6;
+	border: 1px solid rgba(0, 0, 0, 0.1);
+	border-radius: 12px;
+	padding: 18px 22px;
+	margin: 0 0 24px;
+}
+.cp-election-block .cp-election-title {
+	margin-top: 0;
+}
+.cp-election-block .cp-card-public {
+	background: #fff;
+}
+@media (min-width: 1025px) {
+	.cp-event-wide {
+		width: min(92vw, 1500px);
+		position: relative;
+		left: 50%;
+		transform: translateX(-50%);
+	}
+}

@@ -72,3 +72,27 @@
 		} );
 	} );
 } )();
+
+/* Event form: auto-generate the slug from the name until the admin edits it. */
+( function () {
+	document.addEventListener( 'DOMContentLoaded', function () {
+		var name = document.getElementById( 'cp-event-name' );
+		var slug = document.getElementById( 'cp-event-slug' );
+		if ( ! name || ! slug ) {
+			return;
+		}
+		var touched = slug.value.length > 0; // editing an existing event
+		slug.addEventListener( 'input', function () {
+			touched = true;
+			slug.value = slug.value.toLowerCase().replace( /[^a-z0-9-]/g, '-' ).replace( /-+/g, '-' );
+		} );
+		name.addEventListener( 'input', function () {
+			if ( ! touched ) {
+				slug.value = name.value.toLowerCase().trim()
+					.replace( /[^a-z0-9\s-]/g, '' )
+					.replace( /[\s-]+/g, '-' )
+					.replace( /^-|-$/g, '' );
+			}
+		} );
+	} );
+} )();
