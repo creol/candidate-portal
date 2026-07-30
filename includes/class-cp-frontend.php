@@ -109,7 +109,10 @@ class CP_Frontend {
 
 		$bio = apply_filters( 'the_content', get_post( $c->ID )->post_content );
 
-		return '<div class="cp-card-public">'
+		$withdrawn = '1' === get_post_meta( $c->ID, '_cp_withdrawn', true );
+
+		return '<div class="cp-card-public' . ( $withdrawn ? ' cp-withdrawn' : '' ) . '">'
+			. ( $withdrawn ? '<span class="cp-withdrawn-badge">' . esc_html__( 'Withdrawn', 'candidate-portal' ) . '</span>' : '' )
 			. ( $photo ? $photo : '<div class="cp-photo cp-photo-empty" aria-hidden="true"></div>' )
 			. '<h3 class="cp-name">' . esc_html( $c->post_title ) . '</h3>'
 			. '<div class="cp-bio">' . $bio . '</div>'
@@ -140,13 +143,13 @@ class CP_Frontend {
 
 		$out = '<div class="cp-event">';
 
+		$out .= '<h1 class="cp-event-title cp-event-title-top">' . esc_html( $event->post_title ) . '</h1>';
+
 		// Banner image.
 		$images = array_map( 'intval', (array) get_post_meta( $event->ID, '_cp_event_images', true ) );
 		if ( $images ) {
 			$out .= '<div class="cp-event-banner">' . wp_get_attachment_image( $images[0], 'large' ) . '</div>';
 		}
-
-		$out .= '<h1 class="cp-event-title">' . esc_html( $event->post_title ) . '</h1>';
 
 		// Date / time / venue facts.
 		$out .= '<div class="cp-event-facts">';
@@ -196,7 +199,7 @@ class CP_Frontend {
 		// and its own alphabet ordering.
 		$elections = get_posts( array( 'post_type' => 'cp_election', 'posts_per_page' => -1, 'post_status' => 'publish', 'meta_key' => '_cp_event_id', 'meta_value' => $event->ID, 'orderby' => 'title', 'order' => 'ASC' ) );
 		if ( $elections ) {
-			$out .= '<h2 class="cp-event-elections-heading">' . esc_html( count( $elections ) > 1 ? __( 'Elections at this event', 'candidate-portal' ) : __( 'Election', 'candidate-portal' ) ) . '</h2>';
+			$out .= '<h2 class="cp-event-elections-heading">' . esc_html__( 'Meet the Candidates', 'candidate-portal' ) . '</h2>';
 			foreach ( $elections as $election ) {
 				$out .= self::render_election( $election, true );
 			}
@@ -297,6 +300,18 @@ class CP_Frontend {
 						<textarea name="exceptions" rows="4" placeholder="<?php esc_attr_e( 'Leave blank if you support the platform in full.', 'candidate-portal' ); ?>"><?php echo esc_textarea( $meta( '_cp_exceptions' ) ); ?></textarea></label></p>
 				</div>
 
+				<div class="cp-withdraw-box">
+					<?php $is_withdrawn = '1' === get_post_meta( $post->ID, '_cp_withdrawn', true ); ?>
+					<?php if ( $is_withdrawn ) : ?>
+						<p><strong><?php esc_html_e( 'You have withdrawn your candidacy.', 'candidate-portal' ); ?></strong><br/>
+						<span class="cp-hint"><?php esc_html_e( 'Your profile is marked as Withdrawn on the public page. Only a party administrator can reverse this - please contact them if this was a mistake.', 'candidate-portal' ); ?></span></p>
+						<input type="hidden" name="withdrawn" value="1" />
+					<?php else : ?>
+						<p><label class="cp-inline"><input type="checkbox" name="withdrawn" value="1" onchange="if(this.checked&&!confirm('Are you sure you want to WITHDRAW your candidacy? This is permanent - you will NOT be able to undo it yourself. Only a party administrator can reverse it.')){this.checked=false;}" /> <?php esc_html_e( 'Withdraw my candidacy', 'candidate-portal' ); ?></label><br/>
+						<span class="cp-hint"><?php esc_html_e( 'Warning: once you save with this checked, you cannot uncheck it yourself.', 'candidate-portal' ); ?></span></p>
+					<?php endif; ?>
+				</div>
+
 				<p><button type="submit" class="cp-save"><?php esc_html_e( 'Save and publish', 'candidate-portal' ); ?></button>
 					<a class="cp-logout" href="<?php echo esc_url( wp_logout_url( get_permalink() ) ); ?>"><?php esc_html_e( 'Sign out', 'candidate-portal' ); ?></a></p>
 			</form>
@@ -339,6 +354,18 @@ class CP_Frontend {
 		update_post_meta( $post->ID, '_cp_twitter', esc_url_raw( wp_unslash( $_POST['twitter'] ) ) );
 		update_post_meta( $post->ID, '_cp_instagram', esc_url_raw( wp_unslash( $_POST['instagram'] ) ) );
 		update_post_meta( $post->ID, '_cp_exceptions', sanitize_textarea_field( wp_unslash( $_POST['exceptions'] ) ) );
+
+		// Withdrawal is one-way for candidates: they can set it, but once
+		// set only an administrator can clear it (from the admin screen).
+		$currently_withdrawn = '1' === get_post_meta( $post->ID, '_cp_withdrawn', true );
+		if ( ! empty( $_POST['withdrawn'] ) ) {
+			update_post_meta( $post->ID, '_cp_withdrawn', '1' );
+		} elseif ( $currently_withdrawn && ! current_user_can( 'manage_options' ) ) {
+			// Ignore any attempt to un-withdraw without admin rights.
+			update_post_meta( $post->ID, '_cp_withdrawn', '1' );
+		} elseif ( $currently_withdrawn ) {
+			update_post_meta( $post->ID, '_cp_withdrawn', '0' );
+		}
 
 		// Disclosure: record the date the first time it is accepted.
 		if ( ! empty( $_POST['disclosure'] ) ) {

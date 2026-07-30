@@ -88,6 +88,26 @@ class CP_Admin {
 				update_post_meta( $id, '_cp_alphabet_id', sanitize_key( $_POST['alphabet_id'] ) );
 				update_post_meta( $id, '_cp_election_date', sanitize_text_field( $_POST['election_date'] ) );
 				update_post_meta( $id, '_cp_event_id', (int) $_POST['event_id'] );
+
+				// Candidate assignment checkboxes: checked = in this election.
+				if ( isset( $_POST['candidates_present'] ) ) {
+					$checked = array_map( 'intval', isset( $_POST['assigned_candidates'] ) ? (array) $_POST['assigned_candidates'] : array() );
+					$all     = get_posts( array( 'post_type' => 'cp_candidate', 'posts_per_page' => -1, 'post_status' => 'publish', 'fields' => 'ids' ) );
+					foreach ( $all as $cid ) {
+						$current = array_map( 'intval', (array) get_post_meta( $cid, '_cp_elections', true ) );
+						$in_now  = in_array( $id, $current, true );
+						$should  = in_array( $cid, $checked, true );
+						if ( $should && ! $in_now ) {
+							$current[] = $id;
+							update_post_meta( $cid, '_cp_elections', array_values( array_unique( $current ) ) );
+							do_action( 'cp_candidate_saved', $cid );
+						} elseif ( ! $should && $in_now ) {
+							update_post_meta( $cid, '_cp_elections', array_values( array_diff( $current, array( $id ) ) ) );
+							do_action( 'cp_candidate_saved', $cid );
+						}
+					}
+				}
+
 				do_action( 'cp_data_changed' );
 				$notice = 'Election saved.';
 				$back   = 'cp-elections';
@@ -247,10 +267,46 @@ class CP_Admin {
 		$first   = sanitize_text_field( wp_unslash( $_POST['first_name'] ) );
 		$last    = sanitize_text_field( wp_unslash( $_POST['last_name'] ) );
 
-		wp_update_post( array( 'ID' => $post_id, 'post_title' => $first . ' ' . $last ) );
+		wp_update_post( array(
+			'ID'           => $post_id,
+			'post_title'   => $first . ' ' . $last,
+			'post_content' => isset( $_POST['bio'] ) ? wp_kses_post( wp_unslash( $_POST['bio'] ) ) : get_post( $post_id )->post_content,
+		) );
 		update_post_meta( $post_id, '_cp_first_name', $first );
 		update_post_meta( $post_id, '_cp_last_name', $last );
 		update_post_meta( $post_id, '_cp_elections', self::posted_election_ids() );
+
+		if ( isset( $_POST['cp_email'] ) ) {
+			update_post_meta( $post_id, '_cp_email', sanitize_email( wp_unslash( $_POST['cp_email'] ) ) );
+			update_post_meta( $post_id, '_cp_phone', sanitize_text_field( wp_unslash( $_POST['cp_phone'] ) ) );
+			update_post_meta( $post_id, '_cp_show_email', empty( $_POST['show_email'] ) ? '0' : '1' );
+			update_post_meta( $post_id, '_cp_show_phone', empty( $_POST['show_phone'] ) ? '0' : '1' );
+			update_post_meta( $post_id, '_cp_voter_id', sanitize_text_field( wp_unslash( $_POST['voter_id'] ) ) );
+			update_post_meta( $post_id, '_cp_website', esc_url_raw( wp_unslash( $_POST['website'] ) ) );
+			update_post_meta( $post_id, '_cp_facebook', esc_url_raw( wp_unslash( $_POST['facebook'] ) ) );
+			update_post_meta( $post_id, '_cp_twitter', esc_url_raw( wp_unslash( $_POST['twitter'] ) ) );
+			update_post_meta( $post_id, '_cp_instagram', esc_url_raw( wp_unslash( $_POST['instagram'] ) ) );
+			update_post_meta( $post_id, '_cp_exceptions', sanitize_textarea_field( wp_unslash( $_POST['exceptions'] ) ) );
+			// Admins may set or clear withdrawal freely.
+			update_post_meta( $post_id, '_cp_withdrawn', empty( $_POST['withdrawn'] ) ? '0' : '1' );
+		}
+
+		if ( ! empty( $_FILES['cp_photo']['name'] ) ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			require_once ABSPATH . 'wp-admin/includes/image.php';
+			require_once ABSPATH . 'wp-admin/includes/media.php';
+			$allowed = array( 'image/jpeg', 'image/png', 'image/webp' );
+			if ( in_array( $_FILES['cp_photo']['type'], $allowed, true ) ) {
+				$att = media_handle_upload( 'cp_photo', $post_id );
+				if ( ! is_wp_error( $att ) ) {
+					$old = get_post_thumbnail_id( $post_id );
+					set_post_thumbnail( $post_id, $att );
+					if ( $old && $old !== $att ) {
+						wp_delete_attachment( $old, true );
+					}
+				}
+			}
+		}
 
 		do_action( 'cp_candidate_saved', $post_id );
 		return 'Candidate updated.';
@@ -405,23 +461,46 @@ class CP_Admin {
 		if ( $editing && 'cp_candidate' === $editing->post_type ) {
 			$user_id = (int) get_post_meta( $editing->ID, '_cp_user_id', true );
 			$user    = get_user_by( 'id', $user_id );
+			$m       = function ( $k ) use ( $editing ) {
+				return get_post_meta( $editing->ID, $k, true );
+			};
 			echo '<div class="cp-card"><h2>' . esc_html( 'Edit: ' . $editing->post_title ) . '</h2>';
-			self::form_open( 'update_candidate', '<input type="hidden" name="candidate_id" value="' . (int) $editing->ID . '" />' );
-			echo '<p><label>First name<br/><input type="text" name="first_name" required value="' . esc_attr( get_post_meta( $editing->ID, '_cp_first_name', true ) ) . '" /></label></p>';
-			echo '<p><label>Last name<br/><input type="text" name="last_name" required value="' . esc_attr( get_post_meta( $editing->ID, '_cp_last_name', true ) ) . '" /></label></p>';
+			self::form_open( 'update_candidate', '<input type="hidden" name="candidate_id" value="' . (int) $editing->ID . '" />', true );
+			echo '<p><label>First name<br/><input type="text" name="first_name" required value="' . esc_attr( $m( '_cp_first_name' ) ) . '" /></label></p>';
+			echo '<p><label>Last name<br/><input type="text" name="last_name" required value="' . esc_attr( $m( '_cp_last_name' ) ) . '" /></label></p>';
+
+			echo '<p><label>Profile photo<br/>';
+			if ( has_post_thumbnail( $editing->ID ) ) {
+				echo get_the_post_thumbnail( $editing->ID, array( 120, 120 ) ) . '<br/>';
+			}
+			echo '<input type="file" name="cp_photo" accept="image/jpeg,image/png,image/webp" /></label> <span class="description">Uploading replaces the current photo.</span></p>';
+
+			echo '<p><label>About (public bio)<br/><textarea name="bio" rows="6">' . esc_textarea( $editing->post_content ) . '</textarea></label></p>';
+
+			echo '<p><label>Email<br/><input type="email" name="cp_email" value="' . esc_attr( $m( '_cp_email' ) ) . '" /></label> ';
+			echo '<label class="cp-check"><input type="checkbox" name="show_email" value="1" ' . checked( $m( '_cp_show_email' ), '1', false ) . ' /> shown publicly</label></p>';
+			echo '<p><label>Phone<br/><input type="text" name="cp_phone" value="' . esc_attr( $m( '_cp_phone' ) ) . '" /></label> ';
+			echo '<label class="cp-check"><input type="checkbox" name="show_phone" value="1" ' . checked( $m( '_cp_show_phone' ), '1', false ) . ' /> shown publicly</label></p>';
+
+			echo '<p><label>State Voter ID (never public)<br/><input type="text" name="voter_id" value="' . esc_attr( $m( '_cp_voter_id' ) ) . '" /></label></p>';
+
+			echo '<p><label>Website<br/><input type="url" name="website" value="' . esc_attr( $m( '_cp_website' ) ) . '" /></label></p>';
+			echo '<p><label>Facebook<br/><input type="url" name="facebook" value="' . esc_attr( $m( '_cp_facebook' ) ) . '" /></label></p>';
+			echo '<p><label>X / Twitter<br/><input type="url" name="twitter" value="' . esc_attr( $m( '_cp_twitter' ) ) . '" /></label></p>';
+			echo '<p><label>Instagram<br/><input type="url" name="instagram" value="' . esc_attr( $m( '_cp_instagram' ) ) . '" /></label></p>';
+
+			echo '<p><label>Excepted Provisions (public if filled in)<br/><textarea name="exceptions" rows="4">' . esc_textarea( $m( '_cp_exceptions' ) ) . '</textarea></label></p>';
+			$dd = $m( '_cp_disclosure_date' );
+			echo '<p class="description">Disclosure accepted: ' . ( $dd ? esc_html( date_i18n( get_option( 'date_format' ), strtotime( $dd ) ) ) : '<em>not yet - the candidate must accept it in their portal</em>' ) . '</p>';
+
+			echo '<p><label class="cp-check"><input type="checkbox" name="withdrawn" value="1" ' . checked( $m( '_cp_withdrawn' ), '1', false ) . ' /> <strong>Withdrawn</strong></label> <span class="description">Admins can check or uncheck this. Candidates can only check it themselves.</span></p>';
+
 			echo '<p><strong>Elections this candidate appears in:</strong><br/>';
 			self::elections_checklist( array_map( 'intval', (array) get_post_meta( $editing->ID, '_cp_elections', true ) ) );
 			echo '</p>';
 			if ( $user ) {
 				echo '<p class="description">Login email: ' . esc_html( $user->user_email ) . '</p>';
 			}
-			$vid  = get_post_meta( $editing->ID, '_cp_voter_id', true );
-			$dd   = get_post_meta( $editing->ID, '_cp_disclosure_date', true );
-			$exc  = get_post_meta( $editing->ID, '_cp_exceptions', true );
-			echo '<div class="cp-readonly"><strong>From the candidate (read-only):</strong><br/>';
-			echo 'State Voter ID: ' . ( $vid ? esc_html( $vid ) : '<em>not provided yet</em>' ) . '<br/>';
-			echo 'Disclosure accepted: ' . ( $dd ? esc_html( date_i18n( get_option( 'date_format' ), strtotime( $dd ) ) ) : '<em>not yet</em>' ) . '<br/>';
-			echo 'Excepted provisions: ' . ( $exc ? esc_html( $exc ) : '<em>none listed</em>' ) . '</div>';
 			submit_button( 'Save candidate' );
 			echo '</form></div>';
 			echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=cp-candidates' ) ) . '">&larr; Back to all candidates</a></p>';
@@ -500,6 +579,43 @@ class CP_Admin {
 			echo '<option value="' . esc_attr( $a['id'] ) . '" ' . selected( $current_alpha, $a['id'], false ) . '>' . esc_html( $a['name'] . $range ) . '</option>';
 		}
 		echo '</select></label></p>';
+
+		// Candidate assignment: all candidates, assigned ones on top, searchable.
+		$all_candidates = get_posts( array( 'post_type' => 'cp_candidate', 'posts_per_page' => -1, 'post_status' => 'publish', 'orderby' => 'title', 'order' => 'ASC' ) );
+		echo '<input type="hidden" name="candidates_present" value="1" />';
+		echo '<p><strong>' . esc_html__( 'Candidates in this election', 'candidate-portal' ) . '</strong><br/>';
+		echo '<span class="description">' . esc_html__( 'Check to add, uncheck to remove. Assigned candidates are listed first.', 'candidate-portal' ) . '</span></p>';
+		if ( $all_candidates ) {
+			echo '<p><input type="search" id="cp-candidate-search" class="cp-quick" placeholder="' . esc_attr__( 'Search candidates...', 'candidate-portal' ) . '" autocomplete="off" /></p>';
+			$assigned = array();
+			$rest     = array();
+			foreach ( $all_candidates as $c ) {
+				$in = $editing && in_array( $editing->ID, array_map( 'intval', (array) get_post_meta( $c->ID, '_cp_elections', true ) ), true );
+				if ( $in ) {
+					$assigned[] = $c;
+				} else {
+					$rest[] = $c;
+				}
+			}
+			echo '<div class="cp-candidate-picker">';
+			foreach ( array_merge( $assigned, $rest ) as $c ) {
+				$in = $editing && in_array( $editing->ID, array_map( 'intval', (array) get_post_meta( $c->ID, '_cp_elections', true ) ), true );
+				$wd = '1' === get_post_meta( $c->ID, '_cp_withdrawn', true );
+				printf(
+					'<label class="cp-pick%s" data-name="%s"><input type="checkbox" name="assigned_candidates[]" value="%d" %s /> %s%s</label>',
+					$in ? ' cp-pick-assigned' : '',
+					esc_attr( strtolower( $c->post_title ) ),
+					(int) $c->ID,
+					checked( $in, true, false ),
+					esc_html( $c->post_title ),
+					$wd ? ' <em class="cp-wd-tag">(withdrawn)</em>' : ''
+				);
+			}
+			echo '</div>';
+		} else {
+			echo '<p><em>' . esc_html__( 'No candidates yet - add them on the Candidates screen.', 'candidate-portal' ) . '</em></p>';
+		}
+
 		submit_button( $editing ? 'Save election' : 'Create election' );
 		echo '</form></div>';
 

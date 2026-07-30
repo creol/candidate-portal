@@ -56,3 +56,19 @@
 		} );
 	} );
 } )();
+
+/* Candidate search filter on the election edit screen. */
+( function () {
+	document.addEventListener( 'DOMContentLoaded', function () {
+		var search = document.getElementById( 'cp-candidate-search' );
+		if ( ! search ) {
+			return;
+		}
+		search.addEventListener( 'input', function () {
+			var q = search.value.toLowerCase().trim();
+			document.querySelectorAll( '.cp-candidate-picker .cp-pick' ).forEach( function ( el ) {
+				el.style.display = ( ! q || el.getAttribute( 'data-name' ).indexOf( q ) !== -1 ) ? '' : 'none';
+			} );
+		} );
+	} );
+} )();

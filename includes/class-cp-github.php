@@ -129,6 +129,7 @@ class CP_GitHub {
 			'instagram'       => get_post_meta( $post_id, '_cp_instagram', true ),
 			'disclosure_date' => get_post_meta( $post_id, '_cp_disclosure_date', true ),
 			'exceptions'      => get_post_meta( $post_id, '_cp_exceptions', true ),
+			'withdrawn'       => get_post_meta( $post_id, '_cp_withdrawn', true ),
 			// State Voter ID is intentionally NOT synced to GitHub.
 			'elections'       => $election_slugs,
 			'photo'           => $photo_repo_path,
