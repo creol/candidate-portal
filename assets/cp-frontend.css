@@ -183,6 +183,7 @@
 	font-size: 2.4em;
 	line-height: 1.15;
 	margin: 0 0 16px;
+	text-align: center;
 }
 .cp-card-public {
 	position: relative;
@@ -235,11 +236,15 @@
 .cp-election-block .cp-card-public {
 	background: #fff;
 }
+/* Event pages render on a full-width template; the plugin controls width. */
+.cp-event {
+	max-width: 900px;
+	margin: 0 auto;
+	padding: 24px 20px 40px;
+	box-sizing: border-box;
+}
 @media (min-width: 1025px) {
 	.cp-event-wide {
-		width: min(92vw, 1500px);
-		position: relative;
-		left: 50%;
-		transform: translateX(-50%);
+		max-width: min(94vw, 1600px);
 	}
 }

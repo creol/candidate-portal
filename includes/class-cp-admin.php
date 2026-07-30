@@ -382,23 +382,45 @@ class CP_Admin {
 			delete_post_thumbnail( $id );
 		}
 
-		// Auto-create the public page containing the event shortcode, and
-		// keep its shortcode in sync if the slug ever changes.
+		// Auto-create the public page containing the event shortcode. The
+		// page uses Elementor's full-width template (no theme title/sidebar)
+		// and its web address (slug) follows the event's slug.
 		$event   = get_post( $id );
 		$page_id = (int) get_post_meta( $id, '_cp_event_page_id', true );
 		if ( ! $page_id || ! get_post( $page_id ) ) {
 			$page_id = wp_insert_post( array(
 				'post_type'    => 'page',
 				'post_title'   => $title,
+				'post_name'    => $event->post_name,
 				'post_status'  => 'publish',
 				'post_content' => '[election_event event="' . $event->post_name . '"]',
 			) );
 			update_post_meta( $id, '_cp_event_page_id', $page_id );
 		} else {
-			$page = get_post( $page_id );
+			$page        = get_post( $page_id );
 			$new_content = preg_replace( '/\[election_event\s+event="[^"]*"\]/', '[election_event event="' . $event->post_name . '"]', $page->post_content );
-			if ( $new_content !== $page->post_content ) {
-				wp_update_post( array( 'ID' => $page_id, 'post_content' => $new_content ) );
+			wp_update_post( array(
+				'ID'           => $page_id,
+				'post_title'   => $title,
+				'post_name'    => $event->post_name,
+				'post_content' => $new_content,
+			) );
+		}
+		// Full-width, title-less canvas (falls back gracefully if Elementor
+		// is ever deactivated).
+		update_post_meta( $page_id, '_wp_page_template', 'elementor_header_footer' );
+
+		// Election assignment checkboxes: checked = held at this event.
+		if ( isset( $_POST['elections_present'] ) ) {
+			$checked = array_map( 'intval', isset( $_POST['assigned_elections'] ) ? (array) $_POST['assigned_elections'] : array() );
+			$all     = get_posts( array( 'post_type' => 'cp_election', 'posts_per_page' => -1, 'post_status' => 'publish', 'fields' => 'ids' ) );
+			foreach ( $all as $eid ) {
+				$current_event = (int) get_post_meta( $eid, '_cp_event_id', true );
+				if ( in_array( $eid, $checked, true ) ) {
+					update_post_meta( $eid, '_cp_event_id', $id );
+				} elseif ( $current_event === (int) $id ) {
+					update_post_meta( $eid, '_cp_event_id', 0 );
+				}
 			}
 		}
 
@@ -602,7 +624,7 @@ class CP_Admin {
 		echo '<p><strong>' . esc_html__( 'Candidates in this election', 'candidate-portal' ) . '</strong><br/>';
 		echo '<span class="description">' . esc_html__( 'Check to add, uncheck to remove. Assigned candidates are listed first.', 'candidate-portal' ) . '</span></p>';
 		if ( $all_candidates ) {
-			echo '<p><input type="search" id="cp-candidate-search" class="cp-quick" placeholder="' . esc_attr__( 'Search candidates...', 'candidate-portal' ) . '" autocomplete="off" /></p>';
+			echo '<p><input type="search" id="cp-candidate-search" class="cp-quick" data-cp-filter=".cp-candidate-picker" placeholder="' . esc_attr__( 'Search candidates...', 'candidate-portal' ) . '" autocomplete="off" /></p>';
 			$assigned = array();
 			$rest     = array();
 			foreach ( $all_candidates as $c ) {
@@ -613,7 +635,7 @@ class CP_Admin {
 					$rest[] = $c;
 				}
 			}
-			echo '<div class="cp-candidate-picker">';
+			echo '<div class="cp-candidate-picker cp-picker">';
 			foreach ( array_merge( $assigned, $rest ) as $c ) {
 				$in = $editing && in_array( $editing->ID, array_map( 'intval', (array) get_post_meta( $c->ID, '_cp_elections', true ) ), true );
 				$wd = '1' === get_post_meta( $c->ID, '_cp_withdrawn', true );
@@ -686,6 +708,43 @@ class CP_Admin {
 		echo '<p><label>Venue<br/><input type="text" name="event_venue" value="' . esc_attr( $m( 'venue' ) ) . '" placeholder="e.g. Salt Palace Convention Center, Hall B" /></label></p>';
 		echo '<p><label>Google Maps link<br/><input type="url" name="event_maps_url" value="' . esc_attr( $m( 'maps_url' ) ) . '" placeholder="https://maps.app.goo.gl/..." /></label></p>';
 		echo '<p><label>Description<br/><textarea name="event_description" rows="5">' . esc_textarea( $m( 'description' ) ) . '</textarea></label></p>';
+
+		// Election assignment: all elections, assigned ones first, searchable.
+		$all_elections = get_posts( array( 'post_type' => 'cp_election', 'posts_per_page' => -1, 'post_status' => 'publish', 'orderby' => 'title', 'order' => 'ASC' ) );
+		echo '<input type="hidden" name="elections_present" value="1" />';
+		echo '<p><strong>' . esc_html__( 'Elections held at this event', 'candidate-portal' ) . '</strong><br/>';
+		echo '<span class="description">' . esc_html__( 'Check to add, uncheck to remove. An election can only belong to one event - checking one that belongs to another event moves it here.', 'candidate-portal' ) . '</span></p>';
+		if ( $all_elections ) {
+			echo '<p><input type="search" id="cp-election-search" class="cp-quick" data-cp-filter=".cp-election-picker" placeholder="' . esc_attr__( 'Search elections...', 'candidate-portal' ) . '" autocomplete="off" /></p>';
+			$assigned = array();
+			$rest     = array();
+			foreach ( $all_elections as $e ) {
+				$in = $editing && (int) get_post_meta( $e->ID, '_cp_event_id', true ) === (int) $editing->ID;
+				if ( $in ) {
+					$assigned[] = $e;
+				} else {
+					$rest[] = $e;
+				}
+			}
+			echo '<div class="cp-election-picker cp-picker">';
+			foreach ( array_merge( $assigned, $rest ) as $e ) {
+				$in       = $editing && (int) get_post_meta( $e->ID, '_cp_event_id', true ) === (int) $editing->ID;
+				$other_id = (int) get_post_meta( $e->ID, '_cp_event_id', true );
+				$other    = ( $other_id && ( ! $editing || $other_id !== (int) $editing->ID ) ) ? get_post( $other_id ) : null;
+				printf(
+					'<label class="cp-pick%s" data-name="%s"><input type="checkbox" name="assigned_elections[]" value="%d" %s /> %s%s</label>',
+					$in ? ' cp-pick-assigned' : '',
+					esc_attr( strtolower( $e->post_title ) ),
+					(int) $e->ID,
+					checked( $in, true, false ),
+					esc_html( $e->post_title ),
+					$other ? ' <em class="cp-wd-tag">(at: ' . esc_html( $other->post_title ) . ')</em>' : ''
+				);
+			}
+			echo '</div>';
+		} else {
+			echo '<p><em>' . esc_html__( 'No elections yet - create them on the Elections screen.', 'candidate-portal' ) . '</em></p>';
+		}
 
 		if ( $editing ) {
 			$imgs = array_map( 'intval', (array) get_post_meta( $editing->ID, '_cp_event_images', true ) );

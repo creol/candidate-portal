@@ -115,3 +115,23 @@
 	color: #b32d2e;
 	font-weight: normal;
 }
+
+/* v1.4.0: shared picker styles (candidates + elections) */
+.cp-picker {
+	max-height: 300px;
+	overflow-y: auto;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	padding: 8px 12px;
+	max-width: 560px;
+	background: #fff;
+}
+.cp-picker .cp-pick {
+	display: block;
+	padding: 4px 2px;
+	border-bottom: 1px solid #f0f0f1;
+}
+.cp-picker .cp-pick-assigned {
+	background: #f0f6fc;
+	font-weight: 600;
+}

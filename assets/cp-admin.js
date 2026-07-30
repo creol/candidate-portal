@@ -96,3 +96,18 @@
 		} );
 	} );
 } )();
+
+/* Generic picker search: any input with data-cp-filter filters that list. */
+( function () {
+	document.addEventListener( 'DOMContentLoaded', function () {
+		document.querySelectorAll( 'input[data-cp-filter]' ).forEach( function ( search ) {
+			var target = search.getAttribute( 'data-cp-filter' );
+			search.addEventListener( 'input', function () {
+				var q = search.value.toLowerCase().trim();
+				document.querySelectorAll( target + ' .cp-pick' ).forEach( function ( el ) {
+					el.style.display = ( ! q || el.getAttribute( 'data-name' ).indexOf( q ) !== -1 ) ? '' : 'none';
+				} );
+			} );
+		} );
+	} );
+} )();
