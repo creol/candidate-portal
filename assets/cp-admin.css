@@ -135,3 +135,31 @@
 	background: #f0f6fc;
 	font-weight: 600;
 }
+
+/* v1.5.0: event document rows */
+.cp-doc-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+	margin: 6px 0;
+}
+.cp-doc-row input[type="text"] {
+	width: 200px;
+}
+.cp-doc-row input[type="url"] {
+	width: 260px;
+}
+.cp-doc-list {
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	background: #fff;
+	padding: 6px 12px;
+	max-width: 560px;
+	margin-bottom: 8px;
+}
+.cp-doc-list .cp-pick {
+	display: block;
+	padding: 4px 0;
+	border-bottom: 1px solid #f0f0f1;
+}

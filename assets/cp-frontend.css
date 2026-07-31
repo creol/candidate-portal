@@ -248,3 +248,23 @@
 		max-width: min(94vw, 1600px);
 	}
 }
+
+/* v1.5.0: event documents box */
+.cp-doc-box {
+	border: 1px solid rgba(0, 0, 0, 0.12);
+	background: #fafafa;
+	border-radius: 10px;
+	padding: 14px 20px;
+	margin: 20px 0;
+}
+.cp-doc-box h3 {
+	margin: 0 0 8px;
+	font-size: 1.05em;
+}
+.cp-doc-box ul {
+	margin: 0;
+	padding-left: 1.2em;
+}
+.cp-doc-box li {
+	margin: 4px 0;
+}
