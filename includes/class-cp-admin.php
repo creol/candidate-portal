@@ -293,6 +293,7 @@ class CP_Admin {
 			update_post_meta( $post_id, '_cp_exceptions', sanitize_textarea_field( wp_unslash( $_POST['exceptions'] ) ) );
 			// Admins may set or clear withdrawal freely.
 			update_post_meta( $post_id, '_cp_withdrawn', empty( $_POST['withdrawn'] ) ? '0' : '1' );
+			update_post_meta( $post_id, '_cp_disclosure_bypass', empty( $_POST['disclosure_bypass'] ) ? '0' : '1' );
 		}
 
 		if ( ! empty( $_FILES['cp_photo']['name'] ) ) {
@@ -381,6 +382,45 @@ class CP_Admin {
 			update_post_meta( $id, '_cp_event_images', array() );
 			delete_post_thumbnail( $id );
 		}
+
+		// Documents: apply removals, then add new (upload wins over URL).
+		$docs = array_values( (array) get_post_meta( $id, '_cp_event_docs', true ) );
+		if ( ! empty( $_POST['remove_docs'] ) ) {
+			$remove = array_map( 'intval', (array) $_POST['remove_docs'] );
+			foreach ( $remove as $ri ) {
+				if ( isset( $docs[ $ri ]['attachment_id'] ) && $docs[ $ri ]['attachment_id'] ) {
+					wp_delete_attachment( (int) $docs[ $ri ]['attachment_id'], true );
+				}
+				unset( $docs[ $ri ] );
+			}
+			$docs = array_values( $docs );
+		}
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+		for ( $i = 0; $i < 3; $i++ ) {
+			$title = isset( $_POST[ 'doc_title_' . $i ] ) ? sanitize_text_field( wp_unslash( $_POST[ 'doc_title_' . $i ] ) ) : '';
+			$url   = isset( $_POST[ 'doc_url_' . $i ] ) ? esc_url_raw( wp_unslash( $_POST[ 'doc_url_' . $i ] ) ) : '';
+			$has_file = ! empty( $_FILES[ 'doc_file_' . $i ]['name'] );
+			if ( ! $title || ( ! $url && ! $has_file ) ) {
+				continue; // needs a title plus a file or a link
+			}
+			$entry = array( 'title' => $title, 'url' => '', 'attachment_id' => 0 );
+			if ( $has_file ) {
+				$att = media_handle_upload( 'doc_file_' . $i, $id );
+				if ( ! is_wp_error( $att ) ) {
+					$entry['attachment_id'] = (int) $att;
+				} elseif ( $url ) {
+					$entry['url'] = $url;
+				} else {
+					continue; // upload failed and no fallback link
+				}
+			} else {
+				$entry['url'] = $url;
+			}
+			$docs[] = $entry;
+		}
+		update_post_meta( $id, '_cp_event_docs', $docs );
 
 		// Auto-create the public page containing the event shortcode. The
 		// page uses Elementor's full-width template (no theme title/sidebar)
@@ -530,6 +570,7 @@ class CP_Admin {
 			echo '<p><label>Excepted Provisions (public if filled in)<br/><textarea name="exceptions" rows="4">' . esc_textarea( $m( '_cp_exceptions' ) ) . '</textarea></label></p>';
 			$dd = $m( '_cp_disclosure_date' );
 			echo '<p class="description">Disclosure accepted: ' . ( $dd ? esc_html( date_i18n( get_option( 'date_format' ), strtotime( $dd ) ) ) : '<em>not yet - the candidate must accept it in their portal</em>' ) . '</p>';
+			echo '<p><label class="cp-check"><input type="checkbox" name="disclosure_bypass" value="1" ' . checked( $m( '_cp_disclosure_bypass' ), '1', false ) . ' /> <strong>Bypass disclosure requirement</strong></label> <span class="description">Shows this candidate publicly even though they have not accepted the disclosure statement themselves.</span></p>';
 
 			echo '<p><label class="cp-check"><input type="checkbox" name="withdrawn" value="1" ' . checked( $m( '_cp_withdrawn' ), '1', false ) . ' /> <strong>Withdrawn</strong></label> <span class="description">Admins can check or uncheck this. Candidates can only check it themselves.</span></p>';
 
@@ -578,7 +619,8 @@ class CP_Admin {
 			echo '<td>' . esc_html( $names ? implode( ', ', $names ) : '—' ) . '</td>';
 			echo '<td>' . ( has_post_thumbnail( $c->ID ) ? '&#10003;' : '—' ) . '</td>';
 			echo '<td>' . ( get_post_meta( $c->ID, '_cp_voter_id', true ) ? '&#10003;' : '—' ) . '</td>';
-			echo '<td>' . ( get_post_meta( $c->ID, '_cp_disclosure_date', true ) ? '&#10003;' : '—' ) . '</td>';
+			$disc = get_post_meta( $c->ID, '_cp_disclosure_date', true ) ? '&#10003;' : ( '1' === get_post_meta( $c->ID, '_cp_disclosure_bypass', true ) ? '<em>bypass</em>' : '—' );
+			echo '<td>' . $disc . '</td>'; // phpcs:ignore
 			echo '<td class="cp-actions">';
 			echo '<a class="button button-small" href="' . esc_url( admin_url( 'admin.php?page=cp-candidates&edit=' . $c->ID ) ) . '">Edit</a> ';
 			self::form_open( 'resend_invite', '<input type="hidden" name="user_id" value="' . $user_id . '" />' );
@@ -708,6 +750,27 @@ class CP_Admin {
 		echo '<p><label>Venue<br/><input type="text" name="event_venue" value="' . esc_attr( $m( 'venue' ) ) . '" placeholder="e.g. Salt Palace Convention Center, Hall B" /></label></p>';
 		echo '<p><label>Google Maps link<br/><input type="url" name="event_maps_url" value="' . esc_attr( $m( 'maps_url' ) ) . '" placeholder="https://maps.app.goo.gl/..." /></label></p>';
 		echo '<p><label>Description<br/><textarea name="event_description" rows="5">' . esc_textarea( $m( 'description' ) ) . '</textarea></label></p>';
+
+		// Documents: title + file upload or URL.
+		echo '<p><strong>' . esc_html__( 'Documents', 'candidate-portal' ) . '</strong><br/><span class="description">' . esc_html__( 'Shown in a Documents box on the event page, above the candidates. Give each a title and either upload a file or paste a link.', 'candidate-portal' ) . '</span></p>';
+		if ( $editing ) {
+			$docs = (array) get_post_meta( $editing->ID, '_cp_event_docs', true );
+			if ( $docs ) {
+				echo '<div class="cp-doc-list">';
+				foreach ( $docs as $i => $doc ) {
+					$href = ! empty( $doc['attachment_id'] ) ? wp_get_attachment_url( (int) $doc['attachment_id'] ) : ( isset( $doc['url'] ) ? $doc['url'] : '' );
+					echo '<label class="cp-pick"><input type="checkbox" name="remove_docs[]" value="' . (int) $i . '" /> remove &nbsp; <a href="' . esc_url( $href ) . '" target="_blank">' . esc_html( $doc['title'] ) . '</a>' . ( ! empty( $doc['attachment_id'] ) ? ' <em class="description">(uploaded file)</em>' : ' <em class="description">(link)</em>' ) . '</label>';
+				}
+				echo '</div>';
+			}
+		}
+		for ( $i = 0; $i < 3; $i++ ) {
+			echo '<div class="cp-doc-row">';
+			echo '<input type="text" name="doc_title_' . $i . '" placeholder="' . esc_attr__( 'Document title', 'candidate-portal' ) . '" /> ';
+			echo '<input type="file" name="doc_file_' . $i . '" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" /> ';
+			echo '<span class="description">or</span> <input type="url" name="doc_url_' . $i . '" placeholder="https://link-to-document" />';
+			echo '</div>';
+		}
 
 		// Election assignment: all elections, assigned ones first, searchable.
 		$all_elections = get_posts( array( 'post_type' => 'cp_election', 'posts_per_page' => -1, 'post_status' => 'publish', 'orderby' => 'title', 'order' => 'ASC' ) );

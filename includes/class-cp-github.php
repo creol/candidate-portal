@@ -128,6 +128,7 @@ class CP_GitHub {
 			'twitter'         => get_post_meta( $post_id, '_cp_twitter', true ),
 			'instagram'       => get_post_meta( $post_id, '_cp_instagram', true ),
 			'disclosure_date' => get_post_meta( $post_id, '_cp_disclosure_date', true ),
+			'disclosure_bypass' => get_post_meta( $post_id, '_cp_disclosure_bypass', true ),
 			'exceptions'      => get_post_meta( $post_id, '_cp_exceptions', true ),
 			'withdrawn'       => get_post_meta( $post_id, '_cp_withdrawn', true ),
 			// State Voter ID is intentionally NOT synced to GitHub.
@@ -174,6 +175,12 @@ class CP_GitHub {
 				'maps_url'      => get_post_meta( $ev->ID, '_cp_event_maps_url', true ),
 				'agenda'        => get_post_meta( $ev->ID, '_cp_event_agenda', true ),
 				'description'   => get_post_meta( $ev->ID, '_cp_event_description', true ),
+				'documents'     => array_map( function ( $d ) {
+					return array(
+						'title' => isset( $d['title'] ) ? $d['title'] : '',
+						'url'   => ! empty( $d['attachment_id'] ) ? wp_get_attachment_url( (int) $d['attachment_id'] ) : ( isset( $d['url'] ) ? $d['url'] : '' ),
+					);
+				}, array_values( (array) get_post_meta( $ev->ID, '_cp_event_docs', true ) ) ),
 			);
 		}
 		self::put_file( 'data/events.json', wp_json_encode( $events, JSON_PRETTY_PRINT ), 'Update events' );

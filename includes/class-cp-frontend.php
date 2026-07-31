@@ -71,6 +71,12 @@ class CP_Frontend {
 	private static function render_election( $election, $with_heading ) {
 		$candidates = get_posts( array( 'post_type' => 'cp_candidate', 'posts_per_page' => -1, 'post_status' => 'publish' ) );
 		$candidates = array_values( array_filter( $candidates, function ( $c ) use ( $election ) {
+			// Candidates appear publicly once they have personally accepted
+			// the disclosure statement - or when an admin has set the
+			// bypass on their profile.
+			if ( ! get_post_meta( $c->ID, '_cp_disclosure_date', true ) && '1' !== get_post_meta( $c->ID, '_cp_disclosure_bypass', true ) ) {
+				return false;
+			}
 			return in_array( $election->ID, array_map( 'intval', (array) get_post_meta( $c->ID, '_cp_elections', true ) ), true );
 		} ) );
 		$candidates = CP_Alphabets::sort_candidates( $candidates, get_post_meta( $election->ID, '_cp_alphabet_id', true ) );
@@ -212,6 +218,19 @@ class CP_Frontend {
 				$out .= wp_get_attachment_image( $iid, 'medium' );
 			}
 			$out .= '</div>';
+		}
+
+		// Documents box, just above the candidates.
+		$docs = array_values( array_filter( (array) get_post_meta( $event->ID, '_cp_event_docs', true ) ) );
+		if ( $docs ) {
+			$out .= '<div class="cp-doc-box"><h3>' . esc_html__( 'Documents', 'candidate-portal' ) . '</h3><ul>';
+			foreach ( $docs as $doc ) {
+				$href = ! empty( $doc['attachment_id'] ) ? wp_get_attachment_url( (int) $doc['attachment_id'] ) : ( isset( $doc['url'] ) ? $doc['url'] : '' );
+				if ( $href && ! empty( $doc['title'] ) ) {
+					$out .= '<li><a href="' . esc_url( $href ) . '" target="_blank" rel="noopener">' . esc_html( $doc['title'] ) . '</a></li>';
+				}
+			}
+			$out .= '</ul></div>';
 		}
 
 		// Every election assigned to this event, each with its own heading
