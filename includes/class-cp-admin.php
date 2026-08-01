@@ -93,6 +93,11 @@ class CP_Admin {
 				update_post_meta( $id, '_cp_election_date', sanitize_text_field( $_POST['election_date'] ) );
 				update_post_meta( $id, '_cp_event_id', (int) $_POST['event_id'] );
 
+				update_post_meta( $id, '_cp_disc_required', empty( $_POST['disc_required'] ) ? '0' : '1' );
+				update_post_meta( $id, '_cp_disc_text', wp_kses( wp_unslash( $_POST['disc_text'] ), array( 'a' => array( 'href' => true, 'target' => true, 'rel' => true ), 'strong' => array(), 'em' => array(), 'br' => array() ) ) );
+
+				self::save_docs( $id, '_cp_election_docs' );
+
 				// Candidate assignment checkboxes: checked = in this election.
 				if ( isset( $_POST['candidates_present'] ) ) {
 					$checked = array_map( 'intval', isset( $_POST['assigned_candidates'] ) ? (array) $_POST['assigned_candidates'] : array() );
@@ -317,6 +322,47 @@ class CP_Admin {
 		return 'Candidate updated.';
 	}
 
+	/** Shared document handling: removals, uploads, and URL links. */
+	private static function save_docs( $post_id, $meta_key ) {
+		$docs = array_values( (array) get_post_meta( $post_id, $meta_key, true ) );
+		if ( ! empty( $_POST['remove_docs'] ) ) {
+			$remove = array_map( 'intval', (array) $_POST['remove_docs'] );
+			foreach ( $remove as $ri ) {
+				if ( isset( $docs[ $ri ]['attachment_id'] ) && $docs[ $ri ]['attachment_id'] ) {
+					wp_delete_attachment( (int) $docs[ $ri ]['attachment_id'], true );
+				}
+				unset( $docs[ $ri ] );
+			}
+			$docs = array_values( $docs );
+		}
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+		for ( $i = 0; $i < 3; $i++ ) {
+			$title = isset( $_POST[ 'doc_title_' . $i ] ) ? sanitize_text_field( wp_unslash( $_POST[ 'doc_title_' . $i ] ) ) : '';
+			$url   = isset( $_POST[ 'doc_url_' . $i ] ) ? esc_url_raw( wp_unslash( $_POST[ 'doc_url_' . $i ] ) ) : '';
+			$has_file = ! empty( $_FILES[ 'doc_file_' . $i ]['name'] );
+			if ( ! $title || ( ! $url && ! $has_file ) ) {
+				continue; // needs a title plus a file or a link
+			}
+			$entry = array( 'title' => $title, 'url' => '', 'attachment_id' => 0 );
+			if ( $has_file ) {
+				$att = media_handle_upload( 'doc_file_' . $i, $post_id );
+				if ( ! is_wp_error( $att ) ) {
+					$entry['attachment_id'] = (int) $att;
+				} elseif ( $url ) {
+					$entry['url'] = $url;
+				} else {
+					continue; // upload failed and no fallback link
+				}
+			} else {
+				$entry['url'] = $url;
+			}
+			$docs[] = $entry;
+		}
+		update_post_meta( $post_id, $meta_key, $docs );
+	}
+
 	private static function task_save_event() {
 		$id    = isset( $_POST['event_id'] ) ? (int) $_POST['event_id'] : 0;
 		$title = sanitize_text_field( wp_unslash( $_POST['event_name'] ) );
@@ -336,6 +382,9 @@ class CP_Admin {
 		}
 		update_post_meta( $id, '_cp_event_wide', empty( $_POST['event_wide'] ) ? '0' : '1' );
 
+		foreach ( array( 'date', 'start_time', 'end_time', 'venue' ) as $t ) {
+			update_post_meta( $id, '_cp_event_show_' . $t, empty( $_POST[ 'show_' . $t ] ) ? '0' : '1' );
+		}
 		$fields = array( 'date', 'start_time', 'call_to_order', 'end_time', 'venue', 'maps_url', 'agenda', 'description' );
 		foreach ( $fields as $f ) {
 			$raw = isset( $_POST[ 'event_' . $f ] ) ? wp_unslash( $_POST[ 'event_' . $f ] ) : '';
@@ -383,44 +432,7 @@ class CP_Admin {
 			delete_post_thumbnail( $id );
 		}
 
-		// Documents: apply removals, then add new (upload wins over URL).
-		$docs = array_values( (array) get_post_meta( $id, '_cp_event_docs', true ) );
-		if ( ! empty( $_POST['remove_docs'] ) ) {
-			$remove = array_map( 'intval', (array) $_POST['remove_docs'] );
-			foreach ( $remove as $ri ) {
-				if ( isset( $docs[ $ri ]['attachment_id'] ) && $docs[ $ri ]['attachment_id'] ) {
-					wp_delete_attachment( (int) $docs[ $ri ]['attachment_id'], true );
-				}
-				unset( $docs[ $ri ] );
-			}
-			$docs = array_values( $docs );
-		}
-		require_once ABSPATH . 'wp-admin/includes/file.php';
-		require_once ABSPATH . 'wp-admin/includes/image.php';
-		require_once ABSPATH . 'wp-admin/includes/media.php';
-		for ( $i = 0; $i < 3; $i++ ) {
-			$title = isset( $_POST[ 'doc_title_' . $i ] ) ? sanitize_text_field( wp_unslash( $_POST[ 'doc_title_' . $i ] ) ) : '';
-			$url   = isset( $_POST[ 'doc_url_' . $i ] ) ? esc_url_raw( wp_unslash( $_POST[ 'doc_url_' . $i ] ) ) : '';
-			$has_file = ! empty( $_FILES[ 'doc_file_' . $i ]['name'] );
-			if ( ! $title || ( ! $url && ! $has_file ) ) {
-				continue; // needs a title plus a file or a link
-			}
-			$entry = array( 'title' => $title, 'url' => '', 'attachment_id' => 0 );
-			if ( $has_file ) {
-				$att = media_handle_upload( 'doc_file_' . $i, $id );
-				if ( ! is_wp_error( $att ) ) {
-					$entry['attachment_id'] = (int) $att;
-				} elseif ( $url ) {
-					$entry['url'] = $url;
-				} else {
-					continue; // upload failed and no fallback link
-				}
-			} else {
-				$entry['url'] = $url;
-			}
-			$docs[] = $entry;
-		}
-		update_post_meta( $id, '_cp_event_docs', $docs );
+		self::save_docs( $id, '_cp_event_docs' );
 
 		// Auto-create the public page containing the event shortcode. The
 		// page uses Elementor's full-width template (no theme title/sidebar)
@@ -501,6 +513,10 @@ class CP_Admin {
 	/*  Screens                                                            */
 	/* ------------------------------------------------------------------ */
 
+	private static function logo_heading( $title ) {
+		echo '<h1 class="cp-heading"><img src="' . esc_url( CP_PLUGIN_URL . 'assets/portal-logo.jpg' ) . '" alt="" class="cp-admin-logo" /> ' . esc_html( $title ) . '</h1>';
+	}
+
 	private static function notice() {
 		if ( ! empty( $_GET['cp_notice'] ) ) {
 			echo '<div class="notice notice-info is-dismissible"><p>' . esc_html( rawurldecode( wp_unslash( $_GET['cp_notice'] ) ) ) . '</p></div>';
@@ -533,7 +549,7 @@ class CP_Admin {
 
 	public static function page_candidates() {
 		$editing = isset( $_GET['edit'] ) ? get_post( (int) $_GET['edit'] ) : null;
-		echo '<div class="wrap cp-wrap"><h1>' . esc_html__( 'Candidates', 'candidate-portal' ) . '</h1>';
+		echo '<div class=\"wrap cp-wrap\">'; self::logo_heading( __( 'Candidates', 'candidate-portal' ) );
 		self::notice();
 
 		if ( $editing && 'cp_candidate' === $editing->post_type ) {
@@ -568,8 +584,7 @@ class CP_Admin {
 			echo '<p><label>Instagram<br/><input type="url" name="instagram" value="' . esc_attr( $m( '_cp_instagram' ) ) . '" /></label></p>';
 
 			echo '<p><label>Excepted Provisions (public if filled in)<br/><textarea name="exceptions" rows="4">' . esc_textarea( $m( '_cp_exceptions' ) ) . '</textarea></label></p>';
-			$dd = $m( '_cp_disclosure_date' );
-			echo '<p class="description">Disclosure accepted: ' . ( $dd ? esc_html( date_i18n( get_option( 'date_format' ), strtotime( $dd ) ) ) : '<em>not yet - the candidate must accept it in their portal</em>' ) . '</p>';
+			echo '<p class="description">Disclosure status: ' . CP_Frontend::admin_disclosure_status( $editing->ID, true ) . '</p>'; // phpcs:ignore
 			echo '<p><label class="cp-check"><input type="checkbox" name="disclosure_bypass" value="1" ' . checked( $m( '_cp_disclosure_bypass' ), '1', false ) . ' /> <strong>Bypass disclosure requirement</strong></label> <span class="description">Shows this candidate publicly even though they have not accepted the disclosure statement themselves.</span></p>';
 
 			echo '<p><label class="cp-check"><input type="checkbox" name="withdrawn" value="1" ' . checked( $m( '_cp_withdrawn' ), '1', false ) . ' /> <strong>Withdrawn</strong></label> <span class="description">Admins can check or uncheck this. Candidates can only check it themselves.</span></p>';
@@ -619,7 +634,7 @@ class CP_Admin {
 			echo '<td>' . esc_html( $names ? implode( ', ', $names ) : '—' ) . '</td>';
 			echo '<td>' . ( has_post_thumbnail( $c->ID ) ? '&#10003;' : '—' ) . '</td>';
 			echo '<td>' . ( get_post_meta( $c->ID, '_cp_voter_id', true ) ? '&#10003;' : '—' ) . '</td>';
-			$disc = get_post_meta( $c->ID, '_cp_disclosure_date', true ) ? '&#10003;' : ( '1' === get_post_meta( $c->ID, '_cp_disclosure_bypass', true ) ? '<em>bypass</em>' : '—' );
+			$disc = CP_Frontend::admin_disclosure_status( $c->ID );
 			echo '<td>' . $disc . '</td>'; // phpcs:ignore
 			echo '<td class="cp-actions">';
 			echo '<a class="button button-small" href="' . esc_url( admin_url( 'admin.php?page=cp-candidates&edit=' . $c->ID ) ) . '">Edit</a> ';
@@ -637,11 +652,11 @@ class CP_Admin {
 		$alphabets = CP_Alphabets::all();
 		$events    = get_posts( array( 'post_type' => 'cp_event', 'posts_per_page' => -1, 'post_status' => 'publish', 'orderby' => 'title', 'order' => 'ASC' ) );
 
-		echo '<div class="wrap cp-wrap"><h1>' . esc_html__( 'Elections', 'candidate-portal' ) . '</h1>';
+		echo '<div class=\"wrap cp-wrap\">'; self::logo_heading( __( 'Elections', 'candidate-portal' ) );
 		self::notice();
 
 		echo '<div class="cp-card"><h2>' . esc_html( $editing ? 'Edit election' : 'New election' ) . '</h2>';
-		self::form_open( 'save_election', $editing ? '<input type="hidden" name="election_id" value="' . (int) $editing->ID . '" />' : '' );
+		self::form_open( 'save_election', $editing ? '<input type="hidden" name="election_id" value="' . (int) $editing->ID . '" />' : '', true );
 		echo '<p><label>Election name<br/><input type="text" name="election_name" required value="' . esc_attr( $editing ? $editing->post_title : '' ) . '" placeholder="e.g. Vice Chair Special Election 2026" /></label></p>';
 		echo '<p><label>Election date<br/><input type="date" name="election_date" value="' . esc_attr( $editing ? get_post_meta( $editing->ID, '_cp_election_date', true ) : '' ) . '" /></label></p>';
 
@@ -659,6 +674,36 @@ class CP_Admin {
 			echo '<option value="' . esc_attr( $a['id'] ) . '" ' . selected( $current_alpha, $a['id'], false ) . '>' . esc_html( $a['name'] . $range ) . '</option>';
 		}
 		echo '</select></label></p>';
+
+		// Disclosure settings for this election.
+		$disc_required = $editing ? ( '0' !== get_post_meta( $editing->ID, '_cp_disc_required', true ) ) : true;
+		$disc_text     = $editing ? get_post_meta( $editing->ID, '_cp_disc_text', true ) : '';
+		if ( '' === $disc_text ) {
+			$disc_text = CP_Frontend::default_disclosure_html();
+		}
+		echo '<p><label class="cp-check"><input type="checkbox" name="disc_required" value="1" ' . checked( $disc_required, true, false ) . ' /> <strong>' . esc_html__( 'Require a disclosure statement', 'candidate-portal' ) . '</strong></label><br/><span class="description">' . esc_html__( 'When required, candidates must accept the statement below in their portal before they appear publicly in this election.', 'candidate-portal' ) . '</span></p>';
+		echo '<p><label>' . esc_html__( 'Disclosure statement text', 'candidate-portal' ) . '<br/><textarea name="disc_text" rows="4">' . esc_textarea( $disc_text ) . '</textarea></label><br/><span class="description">' . esc_html__( 'Plain text, or paste simple links like &lt;a href="https://..."&gt;Platform&lt;/a&gt;.', 'candidate-portal' ) . '</span></p>';
+
+		// Documents: title + file upload or URL (same as events).
+		echo '<p><strong>' . esc_html__( 'Documents', 'candidate-portal' ) . '</strong><br/><span class="description">' . esc_html__( 'Shown in a Documents box above this election\'s candidates. Give each a title and either upload a file or paste a link.', 'candidate-portal' ) . '</span></p>';
+		if ( $editing ) {
+			$e_docs = (array) get_post_meta( $editing->ID, '_cp_election_docs', true );
+			if ( $e_docs ) {
+				echo '<div class="cp-doc-list">';
+				foreach ( $e_docs as $i => $doc ) {
+					$href = ! empty( $doc['attachment_id'] ) ? wp_get_attachment_url( (int) $doc['attachment_id'] ) : ( isset( $doc['url'] ) ? $doc['url'] : '' );
+					echo '<label class="cp-pick"><input type="checkbox" name="remove_docs[]" value="' . (int) $i . '" /> remove &nbsp; <a href="' . esc_url( $href ) . '" target="_blank">' . esc_html( $doc['title'] ) . '</a>' . ( ! empty( $doc['attachment_id'] ) ? ' <em class="description">(uploaded file)</em>' : ' <em class="description">(link)</em>' ) . '</label>';
+				}
+				echo '</div>';
+			}
+		}
+		for ( $i = 0; $i < 3; $i++ ) {
+			echo '<div class="cp-doc-row">';
+			echo '<input type="text" name="doc_title_' . $i . '" placeholder="' . esc_attr__( 'Document title', 'candidate-portal' ) . '" /> ';
+			echo '<input type="file" name="doc_file_' . $i . '" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" /> ';
+			echo '<span class="description">or</span> <input type="url" name="doc_url_' . $i . '" placeholder="https://link-to-document" />';
+			echo '</div>';
+		}
 
 		// Candidate assignment: all candidates, assigned ones on top, searchable.
 		$all_candidates = get_posts( array( 'post_type' => 'cp_candidate', 'posts_per_page' => -1, 'post_status' => 'publish', 'orderby' => 'title', 'order' => 'ASC' ) );
@@ -727,7 +772,7 @@ class CP_Admin {
 	public static function page_events() {
 		$editing = isset( $_GET['edit'] ) ? get_post( (int) $_GET['edit'] ) : null;
 
-		echo '<div class="wrap cp-wrap"><h1>' . esc_html__( 'Election Events', 'candidate-portal' ) . '</h1>';
+		echo '<div class=\"wrap cp-wrap\">'; self::logo_heading( __( 'Election Events', 'candidate-portal' ) );
 		self::notice();
 		echo '<p class="description">An event is a gathering (convention, organizing meeting) that can hold one or more elections. Saving an event automatically creates its public page with everything laid out - date, venue, agenda, and every assigned election\'s candidates.</p>';
 
@@ -740,14 +785,19 @@ class CP_Admin {
 		echo '<p><label>Event name<br/><input type="text" name="event_name" id="cp-event-name" required value="' . esc_attr( $editing ? $editing->post_title : '' ) . '" placeholder="e.g. 2026 Organizing Convention" /></label></p>';
 		echo '<p><label>Slug (used in the page shortcode and web address)<br/><input type="text" name="event_slug" id="cp-event-slug" value="' . esc_attr( $editing ? $editing->post_name : '' ) . '" placeholder="auto-generated from the name" pattern="[a-z0-9\-]*" /></label><br/><span class="description">Lowercase letters, numbers, and dashes only. Leave blank to auto-generate.</span></p>';
 		echo '<p><label class="cp-check"><input type="checkbox" name="event_wide" value="1" ' . checked( $m( 'wide' ), '1', false ) . ' /> Wide page layout on desktop</label> <span class="description">The event page stretches nearly full-width on large screens. Mobile is unaffected.</span></p>';
-		echo '<p><label>Date<br/><input type="date" name="event_date" value="' . esc_attr( $m( 'date' ) ) . '" /></label></p>';
+		$show = function ( $key ) use ( $editing, $m ) {
+			// Default to shown for new events and for events saved before
+			// this option existed.
+			return ! $editing || '0' !== get_post_meta( $editing->ID, '_cp_event_show_' . $key, true );
+		};
+		echo '<p><label>Date<br/><input type="date" name="event_date" value="' . esc_attr( $m( 'date' ) ) . '" /></label> <label class="cp-check"><input type="checkbox" name="show_date" value="1" ' . checked( $show( 'date' ), true, false ) . ' /> show on page</label></p>';
 		echo '<p class="cp-times">';
-		echo '<label>Start time<br/><input type="time" name="event_start_time" value="' . esc_attr( $m( 'start_time' ) ) . '" /></label> ';
+		echo '<label>Start time<br/><input type="time" name="event_start_time" value="' . esc_attr( $m( 'start_time' ) ) . '" /> <label class="cp-check"><input type="checkbox" name="show_start_time" value="1" ' . checked( $show( 'start_time' ), true, false ) . ' /> show</label></label> ';
 		echo '<label>Call to order (optional)<br/><input type="time" name="event_call_to_order" value="' . esc_attr( $m( 'call_to_order' ) ) . '" /></label> ';
-		echo '<label>End time (optional)<br/><input type="time" name="event_end_time" value="' . esc_attr( $m( 'end_time' ) ) . '" /></label>';
+		echo '<label>End time (optional)<br/><input type="time" name="event_end_time" value="' . esc_attr( $m( 'end_time' ) ) . '" /> <label class="cp-check"><input type="checkbox" name="show_end_time" value="1" ' . checked( $show( 'end_time' ), true, false ) . ' /> show</label></label>';
 		echo '</p>';
 		echo '<p><label>Additional agenda items (optional, one per line, e.g. <code>6:30 PM - Registration opens</code>)<br/><textarea name="event_agenda" rows="4">' . esc_textarea( $m( 'agenda' ) ) . '</textarea></label></p>';
-		echo '<p><label>Venue<br/><input type="text" name="event_venue" value="' . esc_attr( $m( 'venue' ) ) . '" placeholder="e.g. Salt Palace Convention Center, Hall B" /></label></p>';
+		echo '<p><label>Venue<br/><input type="text" name="event_venue" value="' . esc_attr( $m( 'venue' ) ) . '" placeholder="e.g. County Convention Center, Hall B" /></label> <label class="cp-check"><input type="checkbox" name="show_venue" value="1" ' . checked( $show( 'venue' ), true, false ) . ' /> show on page</label></p>';
 		echo '<p><label>Google Maps link<br/><input type="url" name="event_maps_url" value="' . esc_attr( $m( 'maps_url' ) ) . '" placeholder="https://maps.app.goo.gl/..." /></label></p>';
 		echo '<p><label>Description<br/><textarea name="event_description" rows="5">' . esc_textarea( $m( 'description' ) ) . '</textarea></label></p>';
 
@@ -849,7 +899,7 @@ class CP_Admin {
 	public static function page_alphabets() {
 		$editing = isset( $_GET['edit'] ) ? CP_Alphabets::get( sanitize_key( $_GET['edit'] ) ) : null;
 
-		echo '<div class="wrap cp-wrap"><h1>' . esc_html__( 'Alphabets', 'candidate-portal' ) . '</h1>';
+		echo '<div class=\"wrap cp-wrap\">'; self::logo_heading( __( 'Alphabets', 'candidate-portal' ) );
 		self::notice();
 		echo '<p class="description">Type the letters in their new order in the quick-entry box (dashes appear automatically) and the number boxes fill themselves in for you to verify. Or set the numbers by hand - either way works. Candidates are ordered by last name, then first name. Start and end dates are reminders only; any alphabet can be reused in any election at any time.</p>';
 
@@ -890,7 +940,7 @@ class CP_Admin {
 	}
 
 	public static function page_settings() {
-		echo '<div class="wrap cp-wrap"><h1>' . esc_html__( 'Candidate Portal Settings', 'candidate-portal' ) . '</h1>';
+		echo '<div class=\"wrap cp-wrap\">'; self::logo_heading( __( 'Candidate Portal Settings', 'candidate-portal' ) );
 		self::notice();
 
 		echo '<div class="cp-card"><h2>Portal page</h2>';

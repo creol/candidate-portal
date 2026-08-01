@@ -128,6 +128,14 @@ class CP_GitHub {
 			'twitter'         => get_post_meta( $post_id, '_cp_twitter', true ),
 			'instagram'       => get_post_meta( $post_id, '_cp_instagram', true ),
 			'disclosure_date' => get_post_meta( $post_id, '_cp_disclosure_date', true ),
+			'disclosure_accepted' => array_reduce( $election_ids, function ( $acc, $eid ) use ( $post_id ) {
+				$e = get_post( $eid );
+				$d = get_post_meta( $post_id, '_cp_disclosure_accept_' . $eid, true );
+				if ( $e && $d ) {
+					$acc[ $e->post_name ] = $d;
+				}
+				return $acc;
+			}, array() ),
 			'disclosure_bypass' => get_post_meta( $post_id, '_cp_disclosure_bypass', true ),
 			'exceptions'      => get_post_meta( $post_id, '_cp_exceptions', true ),
 			'withdrawn'       => get_post_meta( $post_id, '_cp_withdrawn', true ),
@@ -157,6 +165,14 @@ class CP_GitHub {
 				'date'     => get_post_meta( $e->ID, '_cp_election_date', true ),
 				'event'    => ( $evp = get_post( (int) get_post_meta( $e->ID, '_cp_event_id', true ) ) ) ? $evp->post_name : '',
 				'alphabet' => get_post_meta( $e->ID, '_cp_alphabet_id', true ),
+				'disclosure_required' => '0' !== get_post_meta( $e->ID, '_cp_disc_required', true ),
+				'disclosure_text' => get_post_meta( $e->ID, '_cp_disc_text', true ),
+				'documents' => array_map( function ( $d ) {
+					return array(
+						'title' => isset( $d['title'] ) ? $d['title'] : '',
+						'url'   => ! empty( $d['attachment_id'] ) ? wp_get_attachment_url( (int) $d['attachment_id'] ) : ( isset( $d['url'] ) ? $d['url'] : '' ),
+					);
+				}, array_values( (array) get_post_meta( $e->ID, '_cp_election_docs', true ) ) ),
 			);
 		}
 		self::put_file( 'data/elections.json', wp_json_encode( $elections, JSON_PRETTY_PRINT ), 'Update elections' );
