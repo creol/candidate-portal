@@ -2,10 +2,10 @@
 /**
  * Plugin Name:       Candidate Portal
  * Description:       Simple candidate self-service portal: admin creates elections, alphabets, and candidate accounts; candidates edit their own public profile; everything versioned to GitHub.
- * Version:           1.5.1
+ * Version:           1.7.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
- * Author:            Built with Claude
+ * Author:            Chris Null
  * License:           GPL-2.0-or-later
  * Text Domain:       candidate-portal
  */
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'CP_VERSION', '1.5.1' );
+define( 'CP_VERSION', '1.7.0' );
 define( 'CP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
