@@ -19,36 +19,40 @@ class CP_Frontend {
 		return esc_html( self::DISCLOSURE_TEXT );
 	}
 
-	/** Does this election require a disclosure? (defaults to yes) */
-	public static function election_requires_disclosure( $election_id ) {
-		return '0' !== get_post_meta( $election_id, '_cp_disc_required', true );
+	/** Is the disclosure globally required? (Settings screen, default yes) */
+	public static function disclosure_required() {
+		return '0' !== get_option( 'cp_disc_required', '1' );
 	}
 
-	/** The disclosure text for an election (custom or default). */
-	public static function election_disclosure_text( $election_id ) {
-		$text = get_post_meta( $election_id, '_cp_disc_text', true );
+	/** The disclosure text from Settings (or the built-in default). */
+	public static function disclosure_text() {
+		$text = get_option( 'cp_disc_text', '' );
 		return '' !== $text ? $text : self::default_disclosure_html();
 	}
 
-	/** Has this candidate accepted this election's disclosure? */
-	public static function candidate_accepted( $candidate_id, $election_id ) {
-		if ( get_post_meta( $candidate_id, '_cp_disclosure_accept_' . (int) $election_id, true ) ) {
+	/** Has this candidate accepted the disclosure? Honors acceptances
+	 *  recorded under the brief per-election system as well. */
+	public static function candidate_accepted( $candidate_id ) {
+		if ( get_post_meta( $candidate_id, '_cp_disclosure_date', true ) ) {
 			return true;
 		}
-		// Legacy: acceptances recorded before per-election disclosures count
-		// for all elections.
-		return (bool) get_post_meta( $candidate_id, '_cp_disclosure_date', true );
+		foreach ( array_map( 'intval', (array) get_post_meta( $candidate_id, '_cp_elections', true ) ) as $eid ) {
+			if ( get_post_meta( $candidate_id, '_cp_disclosure_accept_' . $eid, true ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
-	/** Should this candidate appear publicly in this election? */
-	public static function candidate_visible( $candidate_id, $election_id ) {
+	/** Should this candidate appear on public lists? */
+	public static function candidate_visible( $candidate_id ) {
 		if ( '1' === get_post_meta( $candidate_id, '_cp_disclosure_bypass', true ) ) {
 			return true;
 		}
-		if ( ! self::election_requires_disclosure( $election_id ) ) {
+		if ( ! self::disclosure_required() ) {
 			return true;
 		}
-		return self::candidate_accepted( $candidate_id, $election_id );
+		return self::candidate_accepted( $candidate_id );
 	}
 
 	/** Admin-facing summary of a candidate's disclosure status. */
@@ -56,33 +60,14 @@ class CP_Frontend {
 		if ( '1' === get_post_meta( $candidate_id, '_cp_disclosure_bypass', true ) ) {
 			return '<em>bypass</em>';
 		}
-		$required = array();
-		$accepted = array();
-		foreach ( array_map( 'intval', (array) get_post_meta( $candidate_id, '_cp_elections', true ) ) as $eid ) {
-			$e = get_post( $eid );
-			if ( ! $e || 'publish' !== $e->post_status || ! self::election_requires_disclosure( $eid ) ) {
-				continue;
-			}
-			$required[] = $e;
-			if ( self::candidate_accepted( $candidate_id, $eid ) ) {
-				$accepted[] = $eid;
-			}
+		if ( ! self::disclosure_required() ) {
+			return $detailed ? 'disclosure is turned off in Settings' : '&#10003;';
 		}
-		if ( ! $required ) {
-			return $detailed ? 'no disclosure required for their elections' : '&#10003;';
+		if ( self::candidate_accepted( $candidate_id ) ) {
+			$date = get_post_meta( $candidate_id, '_cp_disclosure_date', true );
+			return $detailed ? ( 'accepted' . ( $date ? ' ' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $date ) ) ) : '' ) ) : '&#10003;';
 		}
-		if ( ! $detailed ) {
-			return count( $accepted ) === count( $required ) ? '&#10003;' : ( $accepted ? count( $accepted ) . '/' . count( $required ) : '—' );
-		}
-		$parts = array();
-		foreach ( $required as $e ) {
-			$date = get_post_meta( $candidate_id, '_cp_disclosure_accept_' . $e->ID, true );
-			if ( ! $date && get_post_meta( $candidate_id, '_cp_disclosure_date', true ) ) {
-				$date = get_post_meta( $candidate_id, '_cp_disclosure_date', true );
-			}
-			$parts[] = esc_html( $e->post_title ) . ': ' . ( $date ? 'accepted ' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $date ) ) ) : '<em>not yet</em>' );
-		}
-		return implode( '<br/>', $parts );
+		return $detailed ? '<em>not yet - the candidate must accept it in their portal</em>' : '—';
 	}
 
 	/** Format a phone number as (###)###-#### when it has 10 digits. */
@@ -144,7 +129,7 @@ class CP_Frontend {
 			if ( ! in_array( $election->ID, array_map( 'intval', (array) get_post_meta( $c->ID, '_cp_elections', true ) ), true ) ) {
 				return false;
 			}
-			return self::candidate_visible( $c->ID, $election->ID );
+			return self::candidate_visible( $c->ID );
 		} ) );
 		$candidates = CP_Alphabets::sort_candidates( $candidates, get_post_meta( $election->ID, '_cp_alphabet_id', true ) );
 
@@ -415,35 +400,17 @@ class CP_Frontend {
 				<p class="cp-field"><label>Instagram<br/>
 					<input type="url" name="instagram" placeholder="https://instagram.com/..." value="<?php echo esc_attr( $meta( '_cp_instagram' ) ); ?>" /></label></p>
 
-				<?php
-				// One disclosure block for each of the candidate's elections
-				// that requires one.
-				$disc_elections = array();
-				foreach ( array_map( 'intval', (array) get_post_meta( $post->ID, '_cp_elections', true ) ) as $eid ) {
-					$e = get_post( $eid );
-					if ( $e && 'publish' === $e->post_status && self::election_requires_disclosure( $eid ) ) {
-						$disc_elections[] = $e;
-					}
-				}
-				if ( $disc_elections ) : ?>
+				<?php if ( self::disclosure_required() ) :
+					$disc_date = get_post_meta( $post->ID, '_cp_disclosure_date', true );
+					$accepted  = self::candidate_accepted( $post->ID );
+				?>
 				<div class="cp-disclosure">
 					<h4><?php esc_html_e( 'Candidate Disclosure Statement', 'candidate-portal' ); ?></h4>
-					<?php foreach ( $disc_elections as $e ) :
-						$accepted = self::candidate_accepted( $post->ID, $e->ID );
-						$date     = get_post_meta( $post->ID, '_cp_disclosure_accept_' . $e->ID, true );
-						if ( ! $date ) {
-							$date = get_post_meta( $post->ID, '_cp_disclosure_date', true );
-						}
-					?>
-					<div class="cp-disclosure-election">
-						<p><strong><?php echo esc_html( $e->post_title ); ?></strong></p>
-						<p><?php echo wp_kses_post( self::election_disclosure_text( $e->ID ) ); ?></p>
-						<p><label class="cp-inline"><input type="checkbox" name="disclosure_accept[<?php echo (int) $e->ID; ?>]" value="1" required <?php checked( $accepted ); ?> /> <?php esc_html_e( 'I agree (required)', 'candidate-portal' ); ?></label>
-						<?php if ( $accepted && $date ) : ?>
-							<span class="cp-hint"><?php echo esc_html( sprintf( __( 'Accepted on %s', 'candidate-portal' ), date_i18n( get_option( 'date_format' ), strtotime( $date ) ) ) ); ?></span>
-						<?php endif; ?></p>
-					</div>
-					<?php endforeach; ?>
+					<p><?php echo wp_kses_post( self::disclosure_text() ); ?></p>
+					<p><label class="cp-inline"><input type="checkbox" name="disclosure" value="1" required <?php checked( $accepted ); ?> /> <?php esc_html_e( 'I agree (required)', 'candidate-portal' ); ?></label>
+					<?php if ( $accepted && $disc_date ) : ?>
+						<span class="cp-hint"><?php echo esc_html( sprintf( __( 'Accepted on %s', 'candidate-portal' ), date_i18n( get_option( 'date_format' ), strtotime( $disc_date ) ) ) ); ?></span>
+					<?php endif; ?></p>
 					<p class="cp-field"><label><?php esc_html_e( 'Excepted Provisions:', 'candidate-portal' ); ?><br/>
 						<textarea name="exceptions" rows="4" placeholder="<?php esc_attr_e( 'Leave blank if you support the platform in full.', 'candidate-portal' ); ?>"><?php echo esc_textarea( $meta( '_cp_exceptions' ) ); ?></textarea></label></p>
 				</div>
@@ -502,7 +469,9 @@ class CP_Frontend {
 		update_post_meta( $post->ID, '_cp_facebook', esc_url_raw( wp_unslash( $_POST['facebook'] ) ) );
 		update_post_meta( $post->ID, '_cp_twitter', esc_url_raw( wp_unslash( $_POST['twitter'] ) ) );
 		update_post_meta( $post->ID, '_cp_instagram', esc_url_raw( wp_unslash( $_POST['instagram'] ) ) );
-		update_post_meta( $post->ID, '_cp_exceptions', sanitize_textarea_field( wp_unslash( $_POST['exceptions'] ) ) );
+		if ( isset( $_POST['exceptions'] ) ) {
+			update_post_meta( $post->ID, '_cp_exceptions', sanitize_textarea_field( wp_unslash( $_POST['exceptions'] ) ) );
+		}
 
 		// Withdrawal is one-way for candidates: they can set it, but once
 		// set only an administrator can clear it (from the admin screen).
@@ -516,14 +485,10 @@ class CP_Frontend {
 			update_post_meta( $post->ID, '_cp_withdrawn', '0' );
 		}
 
-		// Disclosure: record acceptance per election, dated the first time
-		// each is accepted. Acceptances are a historical record and are
-		// never deleted by the candidate.
-		$accepts = isset( $_POST['disclosure_accept'] ) ? (array) $_POST['disclosure_accept'] : array();
-		foreach ( array_map( 'intval', (array) get_post_meta( $post->ID, '_cp_elections', true ) ) as $eid ) {
-			if ( ! empty( $accepts[ $eid ] ) && ! get_post_meta( $post->ID, '_cp_disclosure_accept_' . $eid, true ) ) {
-				update_post_meta( $post->ID, '_cp_disclosure_accept_' . $eid, current_time( 'Y-m-d' ) );
-			}
+		// Disclosure: record the acceptance date the first time it is
+		// accepted. It is a historical record the candidate cannot undo.
+		if ( ! empty( $_POST['disclosure'] ) && ! get_post_meta( $post->ID, '_cp_disclosure_date', true ) ) {
+			update_post_meta( $post->ID, '_cp_disclosure_date', current_time( 'Y-m-d' ) );
 		}
 
 		if ( ! empty( $_FILES['cp_photo']['name'] ) ) {

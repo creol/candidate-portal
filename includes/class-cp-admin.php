@@ -93,9 +93,6 @@ class CP_Admin {
 				update_post_meta( $id, '_cp_election_date', sanitize_text_field( $_POST['election_date'] ) );
 				update_post_meta( $id, '_cp_event_id', (int) $_POST['event_id'] );
 
-				update_post_meta( $id, '_cp_disc_required', empty( $_POST['disc_required'] ) ? '0' : '1' );
-				update_post_meta( $id, '_cp_disc_text', wp_kses( wp_unslash( $_POST['disc_text'] ), array( 'a' => array( 'href' => true, 'target' => true, 'rel' => true ), 'strong' => array(), 'em' => array(), 'br' => array() ) ) );
-
 				self::save_docs( $id, '_cp_election_docs' );
 
 				// Candidate assignment checkboxes: checked = in this election.
@@ -168,6 +165,8 @@ class CP_Admin {
 
 			case 'save_settings':
 				update_option( 'cp_portal_page_id', (int) $_POST['portal_page_id'] );
+				update_option( 'cp_disc_required', empty( $_POST['disc_required'] ) ? '0' : '1' );
+				update_option( 'cp_disc_text', wp_kses( wp_unslash( $_POST['disc_text'] ), array( 'a' => array( 'href' => true, 'target' => true, 'rel' => true ), 'strong' => array(), 'em' => array(), 'br' => array() ) ) );
 				update_option( 'cp_gh_owner', sanitize_text_field( $_POST['gh_owner'] ) );
 				update_option( 'cp_gh_repo', sanitize_text_field( $_POST['gh_repo'] ) );
 				update_option( 'cp_gh_branch', sanitize_text_field( $_POST['gh_branch'] ) ? sanitize_text_field( $_POST['gh_branch'] ) : 'main' );
@@ -675,15 +674,6 @@ class CP_Admin {
 		}
 		echo '</select></label></p>';
 
-		// Disclosure settings for this election.
-		$disc_required = $editing ? ( '0' !== get_post_meta( $editing->ID, '_cp_disc_required', true ) ) : true;
-		$disc_text     = $editing ? get_post_meta( $editing->ID, '_cp_disc_text', true ) : '';
-		if ( '' === $disc_text ) {
-			$disc_text = CP_Frontend::default_disclosure_html();
-		}
-		echo '<p><label class="cp-check"><input type="checkbox" name="disc_required" value="1" ' . checked( $disc_required, true, false ) . ' /> <strong>' . esc_html__( 'Require a disclosure statement', 'candidate-portal' ) . '</strong></label><br/><span class="description">' . esc_html__( 'When required, candidates must accept the statement below in their portal before they appear publicly in this election.', 'candidate-portal' ) . '</span></p>';
-		echo '<p><label>' . esc_html__( 'Disclosure statement text', 'candidate-portal' ) . '<br/><textarea name="disc_text" rows="4">' . esc_textarea( $disc_text ) . '</textarea></label><br/><span class="description">' . esc_html__( 'Plain text, or paste simple links like &lt;a href="https://..."&gt;Platform&lt;/a&gt;.', 'candidate-portal' ) . '</span></p>';
-
 		// Documents: title + file upload or URL (same as events).
 		echo '<p><strong>' . esc_html__( 'Documents', 'candidate-portal' ) . '</strong><br/><span class="description">' . esc_html__( 'Shown in a Documents box above this election\'s candidates. Give each a title and either upload a file or paste a link.', 'candidate-portal' ) . '</span></p>';
 		if ( $editing ) {
@@ -949,6 +939,14 @@ class CP_Admin {
 		echo '<p>';
 		wp_dropdown_pages( array( 'name' => 'portal_page_id', 'selected' => (int) get_option( 'cp_portal_page_id' ), 'show_option_none' => '— choose a page —' ) );
 		echo '</p>';
+
+		echo '<h2>Candidate Disclosure Statement</h2>';
+		$disc_text = get_option( 'cp_disc_text', '' );
+		if ( '' === $disc_text ) {
+			$disc_text = CP_Frontend::default_disclosure_html();
+		}
+		echo '<p><label class="cp-check"><input type="checkbox" name="disc_required" value="1" ' . checked( '0' !== get_option( 'cp_disc_required', '1' ), true, false ) . ' /> <strong>' . esc_html__( 'Require the disclosure statement', 'candidate-portal' ) . '</strong></label><br/><span class="description">' . esc_html__( 'When required, candidates must accept the statement below in their portal before they appear on any public candidate list. Admins can bypass this per candidate on the candidate edit screen.', 'candidate-portal' ) . '</span></p>';
+		echo '<p><label>' . esc_html__( 'Statement text (shown to every candidate in their portal)', 'candidate-portal' ) . '<br/><textarea name="disc_text" rows="4">' . esc_textarea( $disc_text ) . '</textarea></label><br/><span class="description">' . esc_html__( 'Plain text, or paste simple links like &lt;a href="https://..."&gt;Platform&lt;/a&gt;.', 'candidate-portal' ) . '</span></p>';
 
 		echo '<h2>GitHub versioning (optional)</h2>';
 		echo '<p class="description">Every save is also stored as a commit in a GitHub repository (your private data repo), giving full history and an off-site backup. State Voter IDs are never synced to GitHub - they stay only in WordPress. Create a fine-grained personal access token with Contents: Read and write permission on that one repository.</p>';
