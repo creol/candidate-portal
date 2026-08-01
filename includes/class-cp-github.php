@@ -172,7 +172,7 @@ class CP_GitHub {
 						'title' => isset( $d['title'] ) ? $d['title'] : '',
 						'url'   => ! empty( $d['attachment_id'] ) ? wp_get_attachment_url( (int) $d['attachment_id'] ) : ( isset( $d['url'] ) ? $d['url'] : '' ),
 					);
-				}, array_values( (array) get_post_meta( $e->ID, '_cp_election_docs', true ) ) ),
+				}, array_values( array_filter( (array) get_post_meta( $e->ID, '_cp_election_docs', true ), 'is_array' ) ) ),
 			);
 		}
 		self::put_file( 'data/elections.json', wp_json_encode( $elections, JSON_PRETTY_PRINT ), 'Update elections' );
@@ -196,7 +196,7 @@ class CP_GitHub {
 						'title' => isset( $d['title'] ) ? $d['title'] : '',
 						'url'   => ! empty( $d['attachment_id'] ) ? wp_get_attachment_url( (int) $d['attachment_id'] ) : ( isset( $d['url'] ) ? $d['url'] : '' ),
 					);
-				}, array_values( (array) get_post_meta( $ev->ID, '_cp_event_docs', true ) ) ),
+				}, array_values( array_filter( (array) get_post_meta( $ev->ID, '_cp_event_docs', true ), 'is_array' ) ) ),
 			);
 		}
 		self::put_file( 'data/events.json', wp_json_encode( $events, JSON_PRETTY_PRINT ), 'Update events' );

@@ -156,7 +156,7 @@ class CP_Frontend {
 				. '</h2>';
 		}
 		// Election documents box, above the candidates.
-		$docs = array_values( array_filter( (array) get_post_meta( $election->ID, '_cp_election_docs', true ) ) );
+		$docs = array_values( array_filter( (array) get_post_meta( $election->ID, '_cp_election_docs', true ), 'is_array' ) );
 		if ( $docs ) {
 			$out .= '<div class="cp-doc-box"><h3>' . esc_html__( 'Documents', 'candidate-portal' ) . '</h3><ul>';
 			foreach ( $docs as $doc ) {
@@ -304,7 +304,7 @@ class CP_Frontend {
 		}
 
 		// Documents box, just above the candidates.
-		$docs = array_values( array_filter( (array) get_post_meta( $event->ID, '_cp_event_docs', true ) ) );
+		$docs = array_values( array_filter( (array) get_post_meta( $event->ID, '_cp_event_docs', true ), 'is_array' ) );
 		if ( $docs ) {
 			$out .= '<div class="cp-doc-box"><h3>' . esc_html__( 'Documents', 'candidate-portal' ) . '</h3><ul>';
 			foreach ( $docs as $doc ) {

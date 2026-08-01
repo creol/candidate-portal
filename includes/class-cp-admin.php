@@ -324,7 +324,7 @@ class CP_Admin {
 
 	/** Shared document handling: removals, uploads, and URL links. */
 	private static function save_docs( $post_id, $meta_key ) {
-		$docs = array_values( (array) get_post_meta( $post_id, $meta_key, true ) );
+		$docs = array_values( array_filter( (array) get_post_meta( $post_id, $meta_key, true ), 'is_array' ) );
 		if ( ! empty( $_POST['remove_docs'] ) ) {
 			$remove = array_map( 'intval', (array) $_POST['remove_docs'] );
 			foreach ( $remove as $ri ) {
@@ -687,7 +687,7 @@ class CP_Admin {
 		// Documents: title + file upload or URL (same as events).
 		echo '<p><strong>' . esc_html__( 'Documents', 'candidate-portal' ) . '</strong><br/><span class="description">' . esc_html__( 'Shown in a Documents box above this election\'s candidates. Give each a title and either upload a file or paste a link.', 'candidate-portal' ) . '</span></p>';
 		if ( $editing ) {
-			$e_docs = (array) get_post_meta( $editing->ID, '_cp_election_docs', true );
+			$e_docs = array_values( array_filter( (array) get_post_meta( $editing->ID, '_cp_election_docs', true ), 'is_array' ) );
 			if ( $e_docs ) {
 				echo '<div class="cp-doc-list">';
 				foreach ( $e_docs as $i => $doc ) {
@@ -804,7 +804,7 @@ class CP_Admin {
 		// Documents: title + file upload or URL.
 		echo '<p><strong>' . esc_html__( 'Documents', 'candidate-portal' ) . '</strong><br/><span class="description">' . esc_html__( 'Shown in a Documents box on the event page, above the candidates. Give each a title and either upload a file or paste a link.', 'candidate-portal' ) . '</span></p>';
 		if ( $editing ) {
-			$docs = (array) get_post_meta( $editing->ID, '_cp_event_docs', true );
+			$docs = array_values( array_filter( (array) get_post_meta( $editing->ID, '_cp_event_docs', true ), 'is_array' ) );
 			if ( $docs ) {
 				echo '<div class="cp-doc-list">';
 				foreach ( $docs as $i => $doc ) {
