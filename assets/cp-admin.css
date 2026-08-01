@@ -163,3 +163,15 @@
 	padding: 4px 0;
 	border-bottom: 1px solid #f0f0f1;
 }
+
+/* v1.6.0: admin logo heading */
+.cp-heading {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+.cp-admin-logo {
+	width: 44px;
+	height: 44px;
+	border-radius: 8px;
+}

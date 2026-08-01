@@ -268,3 +268,24 @@
 .cp-doc-box li {
 	margin: 4px 0;
 }
+
+/* v1.6.0: portal logo */
+.cp-portal-logo {
+	display: block;
+	max-width: 220px;
+	height: auto;
+	margin: 0 auto 18px;
+	border-radius: 12px;
+}
+
+/* v1.7.0: per-election disclosure blocks */
+.cp-disclosure-election {
+	border-top: 1px solid rgba(0, 0, 0, 0.1);
+	padding-top: 10px;
+	margin-top: 10px;
+}
+.cp-disclosure-election:first-of-type {
+	border-top: none;
+	padding-top: 0;
+	margin-top: 0;
+}
