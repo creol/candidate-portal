@@ -86,6 +86,7 @@ class CP_Frontend {
 		add_shortcode( 'candidate_list', array( __CLASS__, 'shortcode_list' ) );
 		add_shortcode( 'election_event', array( __CLASS__, 'shortcode_event' ) );
 		add_shortcode( 'candidate_portal', array( __CLASS__, 'shortcode_portal' ) );
+		add_shortcode( 'upcoming_events', array( __CLASS__, 'shortcode_upcoming' ) );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_handle_profile_save' ) );
 	}
@@ -96,6 +97,7 @@ class CP_Frontend {
 		wp_register_style( 'cp-crop-ui', CP_PLUGIN_URL . 'assets/cp-crop.css', array(), CP_VERSION );
 		wp_register_script( 'cp-cropper', CP_PLUGIN_URL . 'assets/cropper.min.js', array(), '1.6.2', true );
 		wp_register_script( 'cp-crop', CP_PLUGIN_URL . 'assets/cp-crop.js', array( 'cp-cropper' ), CP_VERSION, true );
+		wp_register_script( 'cp-events', CP_PLUGIN_URL . 'assets/cp-events.js', array(), CP_VERSION, true );
 	}
 
 	/* ------------------------------------------------------------------ */
@@ -313,6 +315,126 @@ class CP_Frontend {
 		}
 
 		return $out . '</div>';
+	}
+
+	/* ------------------------------------------------------------------ */
+	/*  Upcoming events widget                                             */
+	/* ------------------------------------------------------------------ */
+
+	public static function shortcode_upcoming( $atts ) {
+		$atts  = shortcode_atts( array( 'style' => 'grid', 'count' => 6 ), $atts, 'upcoming_events' );
+		$style = in_array( $atts['style'], array( 'grid', 'carousel', 'list', 'banner' ), true ) ? $atts['style'] : 'grid';
+		$count = max( 1, min( 20, (int) $atts['count'] ) );
+		if ( 'banner' === $style ) {
+			$count = 1;
+		}
+
+		$events = get_posts( array(
+			'post_type'      => 'cp_event',
+			'post_status'    => 'publish',
+			'posts_per_page' => $count,
+			'meta_key'       => '_cp_event_date',
+			'orderby'        => 'meta_value',
+			'order'          => 'ASC',
+			'meta_query'     => array( array(
+				'key'     => '_cp_event_date',
+				'value'   => current_time( 'Y-m-d' ),
+				'compare' => '>=',
+				'type'    => 'DATE',
+			) ),
+		) );
+
+		$items = array();
+		foreach ( $events as $ev ) {
+			$page_id = (int) get_post_meta( $ev->ID, '_cp_event_page_id', true );
+			$url     = $page_id ? get_permalink( $page_id ) : '';
+			if ( ! $url ) {
+				continue;
+			}
+			$images   = array_map( 'intval', (array) get_post_meta( $ev->ID, '_cp_event_images', true ) );
+			$items[]  = array(
+				'title' => $ev->post_title,
+				'url'   => $url,
+				'date'  => get_post_meta( $ev->ID, '_cp_event_date', true ),
+				'time'  => get_post_meta( $ev->ID, '_cp_event_start_time', true ),
+				'venue' => get_post_meta( $ev->ID, '_cp_event_venue', true ),
+				'image' => $images ? $images[0] : 0,
+			);
+		}
+
+		if ( ! $items ) {
+			return ''; // nothing upcoming: the widget disappears entirely
+		}
+
+		wp_enqueue_style( 'cp-frontend' );
+
+		if ( 'banner' === $style ) {
+			return self::upcoming_banner( $items[0] );
+		}
+		if ( 'list' === $style ) {
+			$out = '<div class="cp-up-list">';
+			foreach ( $items as $it ) {
+				$out .= self::upcoming_row( $it );
+			}
+			return $out . '</div>';
+		}
+		if ( 'carousel' === $style ) {
+			wp_enqueue_script( 'cp-events' );
+			$out  = '<div class="cp-up-carousel">';
+			$out .= '<button type="button" class="cp-up-arrow cp-up-prev" aria-label="' . esc_attr__( 'Previous events', 'candidate-portal' ) . '">&#8249;</button>';
+			$out .= '<div class="cp-up-track">';
+			foreach ( $items as $it ) {
+				$out .= self::upcoming_card( $it );
+			}
+			$out .= '</div>';
+			$out .= '<button type="button" class="cp-up-arrow cp-up-next" aria-label="' . esc_attr__( 'Next events', 'candidate-portal' ) . '">&#8250;</button>';
+			return $out . '</div>';
+		}
+		// Default: grid.
+		$out = '<div class="cp-up-grid">';
+		foreach ( $items as $it ) {
+			$out .= self::upcoming_card( $it );
+		}
+		return $out . '</div>';
+	}
+
+	private static function upcoming_when( $it ) {
+		$when = $it['date'] ? date_i18n( get_option( 'date_format' ), strtotime( $it['date'] ) ) : '';
+		if ( $it['time'] ) {
+			$when .= ' &middot; ' . date_i18n( get_option( 'time_format' ), strtotime( $it['time'] ) );
+		}
+		return $when;
+	}
+
+	private static function upcoming_card( $it ) {
+		return '<a class="cp-up-card" href="' . esc_url( $it['url'] ) . '">'
+			. ( $it['image'] ? wp_get_attachment_image( $it['image'], 'medium_large', false, array( 'class' => 'cp-up-img' ) ) : '<div class="cp-up-img cp-up-img-empty"></div>' )
+			. '<span class="cp-up-body">'
+			. '<span class="cp-up-title">' . esc_html( $it['title'] ) . '</span>'
+			. '<span class="cp-up-when">' . self::upcoming_when( $it ) . '</span>'
+			. ( $it['venue'] ? '<span class="cp-up-venue">' . esc_html( $it['venue'] ) . '</span>' : '' )
+			. '<span class="cp-up-cta">' . esc_html__( 'View event', 'candidate-portal' ) . ' &rarr;</span>'
+			. '</span></a>';
+	}
+
+	private static function upcoming_row( $it ) {
+		$mon = $it['date'] ? date_i18n( 'M', strtotime( $it['date'] ) ) : '';
+		$day = $it['date'] ? date_i18n( 'j', strtotime( $it['date'] ) ) : '';
+		return '<a class="cp-up-row" href="' . esc_url( $it['url'] ) . '">'
+			. '<span class="cp-up-datebadge"><span class="cp-up-mon">' . esc_html( $mon ) . '</span><span class="cp-up-day">' . esc_html( $day ) . '</span></span>'
+			. '<span class="cp-up-body"><span class="cp-up-title">' . esc_html( $it['title'] ) . '</span>'
+			. '<span class="cp-up-when">' . self::upcoming_when( $it ) . ( $it['venue'] ? ' &middot; ' . esc_html( $it['venue'] ) : '' ) . '</span></span>'
+			. '<span class="cp-up-cta">&rarr;</span></a>';
+	}
+
+	private static function upcoming_banner( $it ) {
+		$style = $it['image'] ? ' style="background-image:url(' . esc_url( wp_get_attachment_image_url( $it['image'], 'large' ) ) . ')"' : '';
+		return '<a class="cp-up-banner' . ( $it['image'] ? ' cp-up-banner-img' : '' ) . '" href="' . esc_url( $it['url'] ) . '"' . $style . '>'
+			. '<span class="cp-up-banner-inner">'
+			. '<span class="cp-up-title">' . esc_html( $it['title'] ) . '</span>'
+			. '<span class="cp-up-when">' . self::upcoming_when( $it ) . ( $it['venue'] ? ' &middot; ' . esc_html( $it['venue'] ) : '' ) . '</span>'
+			. '<span class="cp-up-cta">' . esc_html__( 'View event', 'candidate-portal' ) . ' &rarr;</span>'
+			. '</span></a>';
 	}
 
 	/* ------------------------------------------------------------------ */
