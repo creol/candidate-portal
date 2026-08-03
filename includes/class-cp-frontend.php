@@ -19,6 +19,18 @@ class CP_Frontend {
 		return esc_html( self::DISCLOSURE_TEXT );
 	}
 
+	/** Is this event visible to the public (not hidden, publish date reached)? */
+	public static function event_public( $event_id ) {
+		if ( '1' === get_post_meta( $event_id, '_cp_event_hidden', true ) ) {
+			return false;
+		}
+		$pub = get_post_meta( $event_id, '_cp_event_publish_date', true );
+		if ( $pub && strtotime( $pub ) > strtotime( current_time( 'Y-m-d' ) ) ) {
+			return false;
+		}
+		return true;
+	}
+
 	/** Is the disclosure globally required? (Settings screen, default yes) */
 	public static function disclosure_required() {
 		return '0' !== get_option( 'cp_disc_required', '1' );
@@ -224,6 +236,13 @@ class CP_Frontend {
 		if ( ! $event || 'publish' !== $event->post_status ) {
 			return '<p><em>' . esc_html__( 'Event not found.', 'candidate-portal' ) . '</em></p>';
 		}
+		$admin_preview = '';
+		if ( ! self::event_public( $event->ID ) ) {
+			if ( ! current_user_can( 'manage_options' ) ) {
+				return '<p><em>' . esc_html__( 'Event not found.', 'candidate-portal' ) . '</em></p>';
+			}
+			$admin_preview = '<p class="cp-preview-note"><strong>' . esc_html__( 'Admin preview:', 'candidate-portal' ) . '</strong> ' . esc_html__( 'this event is currently invisible to the public (hidden or scheduled for a future publish date).', 'candidate-portal' ) . '</p>';
+		}
 
 		$m = function ( $key ) use ( $event ) {
 			return get_post_meta( $event->ID, '_cp_event_' . $key, true );
@@ -233,7 +252,7 @@ class CP_Frontend {
 		};
 
 		$wide = '1' === get_post_meta( $event->ID, '_cp_event_wide', true );
-		$out  = '<div class="cp-event' . ( $wide ? ' cp-event-wide' : '' ) . '">';
+		$out  = '<div class="cp-event' . ( $wide ? ' cp-event-wide' : '' ) . '">' . $admin_preview;
 
 		$out .= '<h1 class="cp-event-title cp-event-title-top">' . esc_html( $event->post_title ) . '</h1>';
 
@@ -349,6 +368,9 @@ class CP_Frontend {
 
 		$items = array();
 		foreach ( $events as $ev ) {
+			if ( ! self::event_public( $ev->ID ) ) {
+				continue;
+			}
 			$page_id = (int) get_post_meta( $ev->ID, '_cp_event_page_id', true );
 			$url     = $page_id ? get_permalink( $page_id ) : '';
 			if ( ! $url ) {

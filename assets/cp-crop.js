@@ -23,6 +23,7 @@
 				'<div class="cp-crop-stage"><img alt="" /></div>' +
 				'<div class="cp-crop-actions">' +
 					'<button type="button" class="cp-crop-use">Use this photo</button>' +
+					'<button type="button" class="cp-crop-fit">Fit to 1024\u00d7576 (pad edges)</button>' +
 					'<button type="button" class="cp-crop-skip">Keep original</button>' +
 					'<button type="button" class="cp-crop-cancel">Cancel upload</button>' +
 				'</div>' +
@@ -33,6 +34,34 @@
 		overlay.querySelector( '.cp-crop-use' ).addEventListener( 'click', function () {
 			var canvas = cropper.getCroppedCanvas( { maxWidth: 2000, maxHeight: 2000 } );
 			canvas.toBlob( function ( blob ) {
+				var base = ( queue.currentName || 'photo' ).replace( /\.[^.]+$/, '' );
+				var file = new File( [ blob ], base + '.jpg', { type: 'image/jpeg' } );
+				if ( editCb ) {
+					var cb = editCb;
+					editCb = null;
+					teardown();
+					cb( file );
+					return;
+				}
+				doneFiles.push( file );
+				nextInQueue();
+			}, 'image/jpeg', 0.9 );
+		} );
+		overlay.querySelector( '.cp-crop-fit' ).addEventListener( 'click', function () {
+			// Scale the current selection to fit inside 1024x576 and pad the
+			// remaining space evenly with white - nothing gets cropped away.
+			var src = cropper.getCroppedCanvas( { maxWidth: 4000, maxHeight: 4000 } );
+			var target = document.createElement( 'canvas' );
+			target.width = 1024;
+			target.height = 576;
+			var ctx = target.getContext( '2d' );
+			ctx.fillStyle = '#ffffff';
+			ctx.fillRect( 0, 0, target.width, target.height );
+			var scale = Math.min( target.width / src.width, target.height / src.height );
+			var w = Math.round( src.width * scale );
+			var h = Math.round( src.height * scale );
+			ctx.drawImage( src, Math.round( ( target.width - w ) / 2 ), Math.round( ( target.height - h ) / 2 ), w, h );
+			target.toBlob( function ( blob ) {
 				var base = ( queue.currentName || 'photo' ).replace( /\.[^.]+$/, '' );
 				var file = new File( [ blob ], base + '.jpg', { type: 'image/jpeg' } );
 				if ( editCb ) {

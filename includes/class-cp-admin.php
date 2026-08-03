@@ -383,10 +383,11 @@ class CP_Admin {
 		}
 		update_post_meta( $id, '_cp_event_wide', empty( $_POST['event_wide'] ) ? '0' : '1' );
 
+		update_post_meta( $id, '_cp_event_hidden', empty( $_POST['event_hidden'] ) ? '0' : '1' );
 		foreach ( array( 'date', 'start_time', 'end_time', 'venue' ) as $t ) {
 			update_post_meta( $id, '_cp_event_show_' . $t, empty( $_POST[ 'show_' . $t ] ) ? '0' : '1' );
 		}
-		$fields = array( 'date', 'start_time', 'call_to_order', 'end_time', 'venue', 'maps_url', 'agenda', 'description' );
+		$fields = array( 'date', 'start_time', 'call_to_order', 'end_time', 'venue', 'maps_url', 'agenda', 'description', 'publish_date' );
 		foreach ( $fields as $f ) {
 			$raw = isset( $_POST[ 'event_' . $f ] ) ? wp_unslash( $_POST[ 'event_' . $f ] ) : '';
 			$val = in_array( $f, array( 'agenda', 'description' ), true ) ? sanitize_textarea_field( $raw )
@@ -805,6 +806,8 @@ class CP_Admin {
 		echo '<p><label>Event name<br/><input type="text" name="event_name" id="cp-event-name" required value="' . esc_attr( $editing ? $editing->post_title : '' ) . '" placeholder="e.g. 2026 Organizing Convention" /></label></p>';
 		echo '<p><label>Slug (used in the page shortcode and web address)<br/><input type="text" name="event_slug" id="cp-event-slug" value="' . esc_attr( $editing ? $editing->post_name : '' ) . '" placeholder="auto-generated from the name" pattern="[a-z0-9\-]*" /></label><br/><span class="description">Lowercase letters, numbers, and dashes only. Leave blank to auto-generate.</span></p>';
 		echo '<p><label class="cp-check"><input type="checkbox" name="event_wide" value="1" ' . checked( $m( 'wide' ), '1', false ) . ' /> Wide page layout on desktop</label> <span class="description">The event page stretches nearly full-width on large screens. Mobile is unaffected.</span></p>';
+		echo '<p><label class="cp-check"><input type="checkbox" name="event_hidden" value="1" ' . checked( $m( 'hidden' ), '1', false ) . ' /> <strong>Hide this event</strong></label> <span class="description">Hidden events are invisible to the public everywhere (page and widget) until unhidden.</span></p>';
+		echo '<p><label>Publish date<br/><input type="date" name="event_publish_date" value="' . esc_attr( $m( 'publish_date' ) ) . '" /></label> <span class="description">Leave blank to publish immediately. Until this date the event stays invisible to the public.</span></p>';
 		$show = function ( $key ) use ( $editing, $m ) {
 			// Default to shown for new events and for events saved before
 			// this option existed.
@@ -890,7 +893,7 @@ class CP_Admin {
 				echo '</div><p><label><input type="checkbox" name="clear_images" value="1" /> Remove all current images on save</label></p>';
 			}
 		}
-		echo '<p><label>Event image(s) - the first becomes the banner<br/><input type="file" name="event_images[]" accept="image/jpeg,image/png,image/webp" data-cp-crop="free" multiple /></label> <span class="description">A crop tool opens for each image so you can zoom, recenter, and crop. Recommended size: 1600&times;900 pixels (wide 16:9) - larger is fine.</span></p>';
+		echo '<p><label>Event image(s) - the first becomes the banner<br/><input type="file" name="event_images[]" accept="image/jpeg,image/png,image/webp" data-cp-crop="free" multiple /></label> <span class="description">A crop tool opens for each image so you can zoom, recenter, and crop. Recommended size: 1024&times;576 pixels (16:9). The crop tool has a one-click Fit to 1024&times;576 button that pads the edges evenly instead of cropping.</span></p>';
 		submit_button( $editing ? 'Save event' : 'Create event and build its page' );
 		echo '</form></div>';
 
@@ -900,13 +903,20 @@ class CP_Admin {
 			echo '<p><em>None yet.</em></p></div>';
 			return;
 		}
-		echo '<table class="widefat striped cp-table"><thead><tr><th>Event</th><th>Date</th><th>Venue</th><th>Elections</th><th>Page</th><th>Actions</th></tr></thead><tbody>';
+		echo '<table class="widefat striped cp-table"><thead><tr><th>Event</th><th>Date</th><th>Visibility</th><th>Venue</th><th>Elections</th><th>Page</th><th>Actions</th></tr></thead><tbody>';
 		foreach ( $events as $ev ) {
 			$date = get_post_meta( $ev->ID, '_cp_event_date', true );
 			$elections = get_posts( array( 'post_type' => 'cp_election', 'posts_per_page' => -1, 'post_status' => 'publish', 'meta_key' => '_cp_event_id', 'meta_value' => $ev->ID ) );
 			$page_id = (int) get_post_meta( $ev->ID, '_cp_event_page_id', true );
 			echo '<tr><td>' . esc_html( $ev->post_title ) . '</td>';
 			echo '<td>' . esc_html( $date ? date_i18n( get_option( 'date_format' ), strtotime( $date ) ) : '—' ) . '</td>';
+			if ( '1' === get_post_meta( $ev->ID, '_cp_event_hidden', true ) ) {
+				$vis = '<em>hidden</em>';
+			} else {
+				$pub = get_post_meta( $ev->ID, '_cp_event_publish_date', true );
+				$vis = ( $pub && strtotime( $pub ) > strtotime( current_time( 'Y-m-d' ) ) ) ? 'publishes ' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $pub ) ) ) : 'live';
+			}
+			echo '<td>' . $vis . '</td>'; // phpcs:ignore
 			echo '<td>' . esc_html( get_post_meta( $ev->ID, '_cp_event_venue', true ) ?: '—' ) . '</td>';
 			echo '<td>' . esc_html( $elections ? implode( ', ', wp_list_pluck( $elections, 'post_title' ) ) : '—' ) . '</td>';
 			echo '<td>' . ( $page_id && get_post( $page_id ) ? '<a href="' . esc_url( get_permalink( $page_id ) ) . '" target="_blank">View page</a>' : '—' ) . '</td>';
