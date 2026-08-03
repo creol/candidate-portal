@@ -322,7 +322,10 @@ class CP_Frontend {
 	/* ------------------------------------------------------------------ */
 
 	public static function shortcode_upcoming( $atts ) {
-		$atts  = shortcode_atts( array( 'style' => 'grid', 'count' => 6 ), $atts, 'upcoming_events' );
+		$atts  = shortcode_atts( array(
+			'style' => get_option( 'cp_up_style', 'grid' ),
+			'count' => (int) get_option( 'cp_up_count', 6 ),
+		), $atts, 'upcoming_events' );
 		$style = in_array( $atts['style'], array( 'grid', 'carousel', 'list', 'banner' ), true ) ? $atts['style'] : 'grid';
 		$count = max( 1, min( 20, (int) $atts['count'] ) );
 		if ( 'banner' === $style ) {
@@ -408,7 +411,7 @@ class CP_Frontend {
 
 	private static function upcoming_card( $it ) {
 		return '<a class="cp-up-card" href="' . esc_url( $it['url'] ) . '">'
-			. ( $it['image'] ? wp_get_attachment_image( $it['image'], 'medium_large', false, array( 'class' => 'cp-up-img' ) ) : '<div class="cp-up-img cp-up-img-empty"></div>' )
+			. ( $it['image'] ? wp_get_attachment_image( $it['image'], 'medium_large', false, array( 'class' => 'cp-up-img' ) ) : '' )
 			. '<span class="cp-up-body">'
 			. '<span class="cp-up-title">' . esc_html( $it['title'] ) . '</span>'
 			. '<span class="cp-up-when">' . self::upcoming_when( $it ) . '</span>'

@@ -165,6 +165,8 @@ class CP_Admin {
 
 			case 'save_settings':
 				update_option( 'cp_portal_page_id', (int) $_POST['portal_page_id'] );
+				update_option( 'cp_up_style', in_array( $_POST['up_style'], array( 'grid', 'carousel', 'list', 'banner' ), true ) ? $_POST['up_style'] : 'grid' );
+				update_option( 'cp_up_count', max( 1, min( 12, (int) $_POST['up_count'] ) ) );
 				update_option( 'cp_disc_required', empty( $_POST['disc_required'] ) ? '0' : '1' );
 				update_option( 'cp_disc_text', wp_kses( wp_unslash( $_POST['disc_text'] ), array( 'a' => array( 'href' => true, 'target' => true, 'rel' => true ), 'strong' => array(), 'em' => array(), 'br' => array() ) ) );
 				update_option( 'cp_gh_owner', sanitize_text_field( $_POST['gh_owner'] ) );
@@ -424,6 +426,34 @@ class CP_Admin {
 			if ( $gallery && ! has_post_thumbnail( $id ) ) {
 				set_post_thumbnail( $id, $gallery[0] );
 			}
+		}
+
+		// Re-cropped versions of existing images: replace in place.
+		$gallery = array_map( 'intval', (array) get_post_meta( $id, '_cp_event_images', true ) );
+		$was_thumb = (int) get_post_thumbnail_id( $id );
+		$changed = false;
+		foreach ( array_keys( $_FILES ) as $fkey ) {
+			if ( 0 !== strpos( $fkey, 'recrop_' ) || empty( $_FILES[ $fkey ]['name'] ) ) {
+				continue;
+			}
+			$old_id = (int) substr( $fkey, 7 );
+			$pos    = array_search( $old_id, $gallery, true );
+			if ( false === $pos ) {
+				continue;
+			}
+			$new_id = media_handle_upload( $fkey, $id );
+			if ( is_wp_error( $new_id ) ) {
+				continue;
+			}
+			$gallery[ $pos ] = (int) $new_id;
+			if ( $was_thumb === $old_id ) {
+				set_post_thumbnail( $id, $new_id );
+			}
+			wp_delete_attachment( $old_id, true );
+			$changed = true;
+		}
+		if ( $changed ) {
+			update_post_meta( $id, '_cp_event_images', array_values( $gallery ) );
 		}
 
 		if ( isset( $_POST['clear_images'] ) ) {
@@ -852,14 +882,15 @@ class CP_Admin {
 		if ( $editing ) {
 			$imgs = array_map( 'intval', (array) get_post_meta( $editing->ID, '_cp_event_images', true ) );
 			if ( $imgs ) {
-				echo '<p><strong>Current images:</strong></p><p class="cp-thumbs">';
+				echo '<p><strong>Current images:</strong> <span class="description">' . esc_html__( 'Edit lets you crop, zoom, and recenter; the change applies when you save the event.', 'candidate-portal' ) . '</span></p><div class="cp-thumbs">';
 				foreach ( $imgs as $iid ) {
-					echo wp_get_attachment_image( $iid, array( 90, 90 ) );
+					$full = wp_get_attachment_image_url( $iid, 'full' );
+					echo '<span class="cp-thumb">' . wp_get_attachment_image( $iid, array( 120, 120 ) ) . '<button type="button" class="button button-small cp-recrop" data-att="' . (int) $iid . '" data-src="' . esc_url( $full ) . '">' . esc_html__( 'Edit', 'candidate-portal' ) . '</button></span>';
 				}
-				echo '</p><p><label><input type="checkbox" name="clear_images" value="1" /> Remove all current images on save</label></p>';
+				echo '</div><p><label><input type="checkbox" name="clear_images" value="1" /> Remove all current images on save</label></p>';
 			}
 		}
-		echo '<p><label>Event image(s) - the first becomes the banner<br/><input type="file" name="event_images[]" accept="image/jpeg,image/png,image/webp" data-cp-crop="free" multiple /></label> <span class="description">A crop tool opens for each image so you can zoom, recenter, and crop.</span></p>';
+		echo '<p><label>Event image(s) - the first becomes the banner<br/><input type="file" name="event_images[]" accept="image/jpeg,image/png,image/webp" data-cp-crop="free" multiple /></label> <span class="description">A crop tool opens for each image so you can zoom, recenter, and crop. Recommended size: 1600&times;900 pixels (wide 16:9) - larger is fine.</span></p>';
 		submit_button( $editing ? 'Save event' : 'Create event and build its page' );
 		echo '</form></div>';
 
@@ -939,6 +970,21 @@ class CP_Admin {
 		echo '<p>';
 		wp_dropdown_pages( array( 'name' => 'portal_page_id', 'selected' => (int) get_option( 'cp_portal_page_id' ), 'show_option_none' => '— choose a page —' ) );
 		echo '</p>';
+
+		echo '<h2>Events widget</h2>';
+		echo '<p class="description">' . esc_html__( 'Shows upcoming events anywhere on your site (homepage, sidebar, any page). Add a Shortcode widget in Elementor - or a Shortcode block in the editor - and type:', 'candidate-portal' ) . ' <code>[upcoming_events]</code><br/>' . esc_html__( 'It lists events dated today or later, soonest first, each linking to its event page. When nothing is upcoming it shows nothing at all. The look is controlled here; a single page can override with attributes like', 'candidate-portal' ) . ' <code>[upcoming_events style="banner" count="1"]</code></p>';
+		$cur_style = get_option( 'cp_up_style', 'grid' );
+		echo '<p><label>' . esc_html__( 'Widget style', 'candidate-portal' ) . '<br/><select name="up_style">';
+		foreach ( array( 'grid' => 'Card grid', 'carousel' => 'Carousel (swipeable)', 'list' => 'Compact list', 'banner' => 'Next-event banner' ) as $k => $label ) {
+			echo '<option value="' . esc_attr( $k ) . '" ' . selected( $cur_style, $k, false ) . '>' . esc_html( $label ) . '</option>';
+		}
+		echo '</select></label></p>';
+		$cur_count = (int) get_option( 'cp_up_count', 6 );
+		echo '<p><label>' . esc_html__( 'How many events to show', 'candidate-portal' ) . '<br/><select name="up_count">';
+		for ( $i = 1; $i <= 12; $i++ ) {
+			echo '<option value="' . $i . '" ' . selected( $cur_count, $i, false ) . '>' . $i . '</option>';
+		}
+		echo '</select></label> <span class="description">' . esc_html__( 'The banner style always shows just the next event.', 'candidate-portal' ) . '</span></p>';
 
 		echo '<h2>Candidate Disclosure Statement</h2>';
 		$disc_text = get_option( 'cp_disc_text', '' );

@@ -12,7 +12,7 @@
 		return; // library missing - uploads still work, just uncropped
 	}
 
-	var overlay, imgEl, cropper, queue, doneFiles, activeInput, ratioMode;
+	var overlay, imgEl, cropper, queue, doneFiles, activeInput, ratioMode, editCb;
 
 	function buildOverlay() {
 		overlay = document.createElement( 'div' );
@@ -34,15 +34,29 @@
 			var canvas = cropper.getCroppedCanvas( { maxWidth: 2000, maxHeight: 2000 } );
 			canvas.toBlob( function ( blob ) {
 				var base = ( queue.currentName || 'photo' ).replace( /\.[^.]+$/, '' );
-				doneFiles.push( new File( [ blob ], base + '.jpg', { type: 'image/jpeg' } ) );
+				var file = new File( [ blob ], base + '.jpg', { type: 'image/jpeg' } );
+				if ( editCb ) {
+					var cb = editCb;
+					editCb = null;
+					teardown();
+					cb( file );
+					return;
+				}
+				doneFiles.push( file );
 				nextInQueue();
 			}, 'image/jpeg', 0.9 );
 		} );
 		overlay.querySelector( '.cp-crop-skip' ).addEventListener( 'click', function () {
+			if ( editCb ) {
+				editCb = null;
+				teardown();
+				return;
+			}
 			doneFiles.push( queue.currentFile );
 			nextInQueue();
 		} );
 		overlay.querySelector( '.cp-crop-cancel' ).addEventListener( 'click', function () {
+			editCb = null;
 			teardown();
 			if ( activeInput ) {
 				activeInput.value = '';
@@ -120,9 +134,69 @@
 		nextInQueue();
 	}
 
+	/** Open the cropper on an existing image URL; cb receives the new File. */
+	window.cpCropExisting = function ( src, ratio, cb ) {
+		if ( ! overlay ) {
+			buildOverlay();
+		}
+		activeInput = null;
+		ratioMode = ratio || 'free';
+		editCb = cb;
+		queue = { files: [], currentName: 'image.jpg', currentFile: null };
+		doneFiles = [];
+		overlay.style.display = 'flex';
+		if ( cropper ) {
+			cropper.destroy();
+			cropper = null;
+		}
+		imgEl.crossOrigin = 'anonymous';
+		imgEl.src = src + ( src.indexOf( '?' ) === -1 ? '?' : '&' ) + 'cpcrop=' + Date.now();
+		imgEl.onload = function () {
+			imgEl.onload = null;
+			cropper = new Cropper( imgEl, {
+				viewMode: 1,
+				aspectRatio: 'square' === ratioMode ? 1 : NaN,
+				autoCropArea: 1,
+				movable: true,
+				zoomable: true,
+				responsive: true,
+				background: false
+			} );
+		};
+	};
+
 	document.addEventListener( 'DOMContentLoaded', function () {
 		document.querySelectorAll( 'input[type="file"][data-cp-crop]' ).forEach( function ( input ) {
 			input.addEventListener( 'change', onPick );
+		} );
+
+		// Edit buttons on existing event images.
+		document.querySelectorAll( '.cp-recrop' ).forEach( function ( btn ) {
+			btn.addEventListener( 'click', function () {
+				window.cpCropExisting( btn.getAttribute( 'data-src' ), 'free', function ( file ) {
+					var form = btn.closest( 'form' );
+					if ( ! form ) {
+						return;
+					}
+					var name = 'recrop_' + btn.getAttribute( 'data-att' );
+					var input = form.querySelector( 'input[name="' + name + '"]' );
+					if ( ! input ) {
+						input = document.createElement( 'input' );
+						input.type = 'file';
+						input.name = name;
+						input.style.display = 'none';
+						form.appendChild( input );
+					}
+					try {
+						var dt = new DataTransfer();
+						dt.items.add( file );
+						input.files = dt.files;
+						btn.textContent = 'Edited \u2713 (applies on save)';
+					} catch ( err ) {
+						btn.textContent = 'Browser not supported';
+					}
+				} );
+			} );
 		} );
 	} );
 } )();
