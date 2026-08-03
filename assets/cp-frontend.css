@@ -115,10 +115,11 @@
 .cp-event-banner img {
 	width: 100%;
 	height: auto;
-	max-height: 420px;
-	object-fit: cover;
+	max-height: 640px;
+	object-fit: contain;
 	border-radius: 10px;
 	display: block;
+	margin: 0 auto;
 }
 .cp-event-title {
 	margin: 18px 0 10px;
@@ -293,8 +294,9 @@
 /* v1.9.0: upcoming events widget */
 .cp-up-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(260px, 340px));
 	gap: 20px;
+	justify-content: center;
 }
 .cp-up-card {
 	display: flex;
@@ -472,4 +474,12 @@
 }
 .cp-up-banner .cp-up-title {
 	font-size: 1.5em;
+}
+
+/* v1.10.2: center carousel cards when there is spare room */
+.cp-up-track > .cp-up-card:first-child {
+	margin-left: auto;
+}
+.cp-up-track > .cp-up-card:last-child {
+	margin-right: auto;
 }

@@ -19,7 +19,7 @@
 		overlay.className = 'cp-crop-overlay';
 		overlay.innerHTML =
 			'<div class="cp-crop-modal">' +
-				'<p class="cp-crop-title">Adjust your photo - drag to recenter, scroll or pinch to zoom, drag corners to crop.</p>' +
+				'<p class="cp-crop-title">Adjust your photo - drag to recenter, scroll or pinch to zoom, drag corners to crop. <span class="cp-crop-dims"></span></p>' +
 				'<div class="cp-crop-stage"><img alt="" /></div>' +
 				'<div class="cp-crop-actions">' +
 					'<button type="button" class="cp-crop-use">Use this photo</button>' +
@@ -93,6 +93,15 @@
 		} );
 	}
 
+	function updateDims() {
+		var el = overlay ? overlay.querySelector( '.cp-crop-dims' ) : null;
+		if ( ! el || ! cropper ) {
+			return;
+		}
+		var d = cropper.getData( true );
+		el.textContent = 'Selection: ' + d.width + '\u00d7' + d.height + ' px';
+	}
+
 	function teardown() {
 		if ( cropper ) {
 			cropper.destroy();
@@ -120,7 +129,9 @@
 				movable: true,
 				zoomable: true,
 				responsive: true,
-				background: false
+				background: false,
+				crop: updateDims,
+				ready: updateDims
 			} );
 		};
 		reader.readAsDataURL( file );
@@ -189,7 +200,9 @@
 				movable: true,
 				zoomable: true,
 				responsive: true,
-				background: false
+				background: false,
+				crop: updateDims,
+				ready: updateDims
 			} );
 		};
 	};
